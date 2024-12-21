@@ -2,13 +2,14 @@
 
 /* eslint-disable react-hooks/rules-of-hooks */
 import React, { useEffect, useState } from "react";
+import useAuthStore from "@/store/useAuthStore";
 import { useDebounceCallback } from "usehooks-ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { authFormSchema } from "@/lib/utils";
+import { SignInSchema } from "@/lib/utils";
 import axios, { AxiosError } from "axios";
 import { ApiResponse } from "@/types/ApiResponse";
 import {
@@ -25,38 +26,43 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 
-const page = () => {
+export default function Signin() {
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { setToken } = useAuthStore();
+
   const debounced = useDebounceCallback(setUsername, 300);
   const { toast } = useToast();
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof authFormSchema>>({
-    resolver: zodResolver(authFormSchema),
+  const form = useForm<z.infer<typeof SignInSchema>>({
+    resolver: zodResolver(SignInSchema),
     defaultValues: {
-      username: "",
       email: "",
       password: "",
     },
   });
 
-
-  const onSubmit = async (data: z.infer<typeof authFormSchema>) => {
+  const onSubmit = async (data: z.infer<typeof SignInSchema>) => {
     setIsSubmitting(true);
+
     try {
       const response = await axios.post<ApiResponse>(
-        "http://localhost:3000/api/signin",
-        data
+        "http://localhost:8000/api/signin",
+        data,
+        { withCredentials: true }
       );
+      console.log(response.data.token);
+      // setToken(response.data.token);
+
       toast({
         title: "Success",
         description: response.data.message,
       });
-      router.replace(`/verify/${username}`);
+      router.replace("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       const errorMessage = axiosError.response?.data.message;
@@ -101,11 +107,7 @@ const page = () => {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="password"
-                      {...field}
-                    />
+                    <Input type="password" placeholder="password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,6 +136,4 @@ const page = () => {
       </div>
     </div>
   );
-};
-
-export default page;
+}

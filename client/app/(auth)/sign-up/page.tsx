@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { authFormSchema } from "@/lib/utils";
+import { SignUpSchema } from "@/lib/utils";
 import axios, { AxiosError } from "axios";
 import { ApiResponse } from "@/types/ApiResponse";
 import {
@@ -26,7 +26,7 @@ import Link from "next/link";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import useAuthStore from "@/store/useAuthStore";
 
-const page = () => {
+export default function Signup() {
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
@@ -38,8 +38,8 @@ const page = () => {
   const { toast } = useToast();
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof authFormSchema>>({
-    resolver: zodResolver(authFormSchema),
+  const form = useForm<z.infer<typeof SignUpSchema>>({
+    resolver: zodResolver(SignUpSchema),
     defaultValues: {
       username: "",
       email: "",
@@ -74,7 +74,7 @@ const page = () => {
     checkUsernameUnique();
   }, [username]);
 
-  const onSubmit = async (data: z.infer<typeof authFormSchema>) => {
+  const onSubmit = async (data: z.infer<typeof SignUpSchema>) => {
     setIsSubmitting(true);
     try {
       const response = await axios.post<ApiResponse>(
@@ -198,5 +198,3 @@ const page = () => {
     </div>
   );
 };
-
-export default page;

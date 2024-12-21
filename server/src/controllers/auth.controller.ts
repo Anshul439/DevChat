@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { z, ZodError } from "zod";
+import { optional, z, ZodError } from "zod";
 import { emailVerify } from "../helpers/email";
 
 const prisma = new PrismaClient();
@@ -74,9 +74,19 @@ export const signup = async (
 
     await emailVerify(email, username, verifyCode);
 
-    res.status(201).json({ message: "User created successfully", user });
-    console.log(user);
-    
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    const options = {
+      httpOnly: true,
+      // secure: true
+    }
+
+    res
+      .status(201)
+      .cookie("authToken", token, options)
+      .json({ message: "User created successfully", user });
   } catch (error) {
     res.status(500).json({ error: "An error occurred during signup" });
     console.error(error);
@@ -116,11 +126,19 @@ export const signin = async (
       expiresIn: "1h",
     });
 
-    res.status(200).json({
-      message: "Sign in successful",
-      token,
-      user: { id: user.id, username: user.username, email: user.email },
-    });
+    const options = {
+      httpOnly: true,
+      // secure: true
+    }
+
+    res
+      .status(200)
+      .cookie("authToken", token, options)
+      .json({
+        message: "Sign in successful",
+        token,
+        user: { id: user.id, username: user.username, email: user.email },
+      });
   } catch (error) {
     res.status(500).json({ error: "An error occurred during sign in" });
     console.error(error);

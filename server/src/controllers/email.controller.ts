@@ -7,7 +7,6 @@ const prisma = new PrismaClient();
 export const verifyCode = async (req: Request, res: Response): Promise<void> => {
   
   const { email, otpValue } = req.body;
-  console.log(req.body);
   
 
   if (!email || !otpValue) {

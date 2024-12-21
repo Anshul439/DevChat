@@ -1,9 +1,7 @@
 import VerifyEmail from "@/components/VerifyEmail"
 
-const page = () => {
+export default function Verify() {
   return (
     <VerifyEmail />
   )
 }
-
-export default page

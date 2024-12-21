@@ -1,9 +1,27 @@
-import {create} from "zustand";
+'use client'
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
-// Create the Zustand store for authentication
-const useAuthStore = create((set) => ({
-  email: null, // Default state
-  setEmail: (email) => set({ email }), // Action to update the email
-}));
+interface AuthStore {
+  tokenResponse: boolean | null;
+  email: string | null;
+  setTokenResponse: (tokenResponse: boolean) => void;
+  setEmail: (email: string) => void;
+}
+
+const useAuthStore = create<AuthStore>()(
+  persist(
+    (set) => ({
+      tokenResponse: null,
+      email: null,
+      setTokenResponse: (tokenResponse) => set({ tokenResponse }),
+      setEmail: (email) => set({ email }),
+    }),
+    {
+      name: 'auth-storage',
+      storage: createJSONStorage(() => localStorage),
+    }
+  )
+);
 
 export default useAuthStore;

@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import userRoutes from './routes/auth.route.js'
 import emailRoutes from './routes/email.route.js'
 import cors from 'cors'
+import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
@@ -22,6 +23,8 @@ app.use(cors(corsOptions));
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+app.use(cookieParser())
 
 app.use("/api", userRoutes);
 app.use("/api", emailRoutes);
