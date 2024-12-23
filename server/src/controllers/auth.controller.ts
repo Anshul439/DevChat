@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { optional, z, ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { emailVerify } from "../helpers/email";
 
 const prisma = new PrismaClient();
@@ -22,6 +22,10 @@ const signinSchema = z.object({
 
 const checkUsernameSchema = z.object({
   username: z.string().nonempty("Username is required"),
+});
+
+const checkEmailSchema = z.object({
+  email: z.string().nonempty("Email is required"),
 });
 
 // Utility function to format Zod errors
@@ -145,6 +149,8 @@ export const signin = async (
   }
 };
 
+
+
 export const checkUsername = async (
   req: Request,
   res: Response,
@@ -180,6 +186,48 @@ export const checkUsername = async (
     res.status(500).json({
       status: "error",
       message: "An error occurred while checking username availability",
+    });
+    console.error(error);
+  }
+};
+
+
+
+export const checkEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const validation = checkEmailSchema.safeParse(req.query);
+
+  if (!validation.success) {
+    return res.status(400).json({ errors: formatZodError(validation.error) });
+  }
+
+  const { email } = validation.data;
+
+  try {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingEmail) {
+      return res.status(200).json({
+        status: "error",
+        message: "Email is already taken",
+        available: false,
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Email is available",
+      available: true,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "An error occurred while checking email availability",
     });
     console.error(error);
   }

@@ -23,18 +23,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
+// import GoogleSignInButton from "@/components/GoogleSignInButton";
 import useAuthStore from "@/store/useAuthStore";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
+  const [email, setEmaill] = useState(""); // for checking email availability
   const [usernameMessage, setUsernameMessage] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const setEmail = useAuthStore((state) => state.setEmail);
+  const setEmail = useAuthStore((state) => state.setEmail); // email from store
 
-  const debounced = useDebounceCallback(setUsername, 300);
+  const debouncedUsername = useDebounceCallback(setUsername, 500);
+  const debouncedEmail = useDebounceCallback(setEmaill, 500);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -59,6 +63,8 @@ export default function Signup() {
               params: { username: username },
             }
           );
+          console.log(response);
+          
           const message = response.data.message;
           setUsernameMessage(message);
         } catch (error) {
@@ -71,8 +77,36 @@ export default function Signup() {
         }
       }
     };
+
     checkUsernameUnique();
   }, [username]);
+
+  useEffect(() => {
+    const checkEmailUnique = async () => {
+      if (email) {
+        setIsCheckingEmail(true);
+        setEmailMessage("");
+        try {
+          const response = await axios.get(
+            `http://localhost:8000/api/check-email`,
+            {
+              params: { email: email },
+            }
+          );
+          const message = response.data.message;
+          setEmailMessage(message);
+        } catch (error) {
+          const axiosError = error as AxiosError<ApiResponse>;
+          setEmailMessage(
+            axiosError.response?.data.message ?? "Error checking email"
+          );
+        } finally {
+          setIsCheckingEmail(false);
+        }
+      }
+    };
+    checkEmailUnique();
+  }, [email]);
 
   const onSubmit = async (data: z.infer<typeof SignUpSchema>) => {
     setIsSubmitting(true);
@@ -82,8 +116,8 @@ export default function Signup() {
         data
       );
       console.log(response);
-      setEmail(data.email)
-      
+      setEmail(data.email);
+
       toast({
         title: "Success",
         description: response.data.message,
@@ -104,7 +138,7 @@ export default function Signup() {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg  shadow-md">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-light lg:text-5xl mb-6">
             Join Chatter
@@ -125,7 +159,7 @@ export default function Signup() {
                       {...field}
                       onChange={(e) => {
                         field.onChange(e);
-                        debounced(e.target.value);
+                        debouncedUsername(e.target.value);
                       }}
                     />
                   </FormControl>
@@ -151,13 +185,35 @@ export default function Signup() {
             <FormField
               name="email"
               control={form.control}
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="email" {...field} />
+                    <Input
+                      placeholder="email"
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        debouncedEmail(e.target.value);
+                      }}
+                    />
                   </FormControl>
-                  <FormMessage />
+                  {isCheckingEmail && <Loader2 className="animate-spin" />}
+
+                  {/* Only show one message at a time */}
+                  {!fieldState.error ? (
+                    <p
+                      className={`text-sm ${
+                        emailMessage === "Email is available"
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {emailMessage}
+                    </p>
+                  ) : (
+                    <FormMessage />
+                  )}
                 </FormItem>
               )}
             />
@@ -197,4 +253,4 @@ export default function Signup() {
       </div>
     </div>
   );
-};
+}
