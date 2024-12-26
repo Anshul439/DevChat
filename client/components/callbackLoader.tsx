@@ -1,12 +1,11 @@
-'use client'
+"use client";
 
-import { Loader2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
 const LoadingPage = () => {
-
-    const router = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
 
@@ -18,25 +17,24 @@ const LoadingPage = () => {
 
   const exchangeCodeForToken = async (code: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/github', {
-        method: 'POST',
+      const response = await fetch("http://localhost:8000/api/auth/github", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ code }),
-        credentials: 'include',
+        credentials: "include",
       });
       console.log(response);
-      
 
       const data = await response.json();
       console.log(data);
-      
+
       if (data.success) {
-        router.push('/dashboard');
+        router.push("/dashboard");
       }
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error("Authentication error:", error);
     }
   };
 

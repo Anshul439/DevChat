@@ -56,8 +56,6 @@ export default function Signin() {
         data,
         { withCredentials: true }
       );
-      console.log(response.data.token);
-      // setToken(response.data.token);
 
       toast({
         title: "Success",
@@ -65,13 +63,20 @@ export default function Signin() {
       });
       router.replace("/dashboard");
     } catch (error) {
-      const axiosError = error as AxiosError<ApiResponse>;
-      const errorMessage = axiosError.response?.data.message;
-      toast({
-        title: "Signin failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      if (error instanceof AxiosError<ApiResponse>) {
+        const message = error.response?.data?.message || "Sign in failed";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

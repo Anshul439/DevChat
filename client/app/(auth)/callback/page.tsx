@@ -1,4 +1,4 @@
-import LoadingPage from "@/components/callbackLoader"
+import LoadingPage from "@/components/CallbackLoader"
 
 export default function Callback() {
  return (

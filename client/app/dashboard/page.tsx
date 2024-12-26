@@ -1,4 +1,4 @@
-import AuthGuard from '@/components/authGuard';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function DashboardPage() {
   return (

@@ -94,7 +94,7 @@ export const signup = async (
       .status(201)
       .cookie("authToken", token, options)
       .json({
-        message: "User created successful",
+        message: "User created successfully",
         token,
         user: { id: user.id, username: user.username, email: user.email },
       });
@@ -122,15 +122,17 @@ export const signin = async (
     const user = await prisma.user.findUnique({
       where: { email },
     });
+    console.log(email);
+    
 
     if (!user) {
-      return res.status(400).json({ error: "User not found" });
+      return res.status(401).json({ message: "User not found" });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(400).json({ error: "Invalid email or password" });
+      return res.status(400).json({ message: "Invalid email or password" });
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
