@@ -52,7 +52,7 @@ const VerifyPage = () => {
       console.log(data.message);
 
       if (data.message) {
-        router.push("/dashboard");
+        router.replace("/dashboard");
       } else {
         // Handle failure (e.g., invalid OTP)
         alert("Invalid OTP. Please try again.");

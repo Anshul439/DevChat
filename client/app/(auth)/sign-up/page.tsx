@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SignUpSchema } from "@/lib/utils";
 import axios, { AxiosError } from "axios";
 import { ApiResponse } from "@/types/ApiResponse";
@@ -25,6 +25,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 // import GoogleSignInButton from "@/components/GoogleSignInButton";
 import useAuthStore from "@/store/useAuthStore";
+import GitHubButton from "@/components/GithubButton";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -64,7 +65,7 @@ export default function Signup() {
             }
           );
           console.log(response);
-          
+
           const message = response.data.message;
           setUsernameMessage(message);
         } catch (error) {
@@ -108,12 +109,15 @@ export default function Signup() {
     checkEmailUnique();
   }, [email]);
 
+  
+
   const onSubmit = async (data: z.infer<typeof SignUpSchema>) => {
     setIsSubmitting(true);
     try {
       const response = await axios.post<ApiResponse>(
         "http://localhost:8000/api/signup",
-        data
+        data,
+        { withCredentials: true }
       );
       console.log(response);
       setEmail(data.email);
@@ -241,6 +245,7 @@ export default function Signup() {
             </Button>
           </form>
         </Form>
+        <GitHubButton />
         {/* <GoogleSignInButton>Sign up with Google</GoogleSignInButton> */}
         <div className="text-center mt-4">
           <p>

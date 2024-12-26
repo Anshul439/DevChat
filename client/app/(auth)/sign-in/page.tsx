@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import GithubButton from "@/components/GithubButton";
 
 export default function Signin() {
   const [username, setUsername] = useState("");
@@ -124,6 +125,7 @@ export default function Signin() {
             </Button>
           </form>
         </Form>
+        <GithubButton />
         {/* <GoogleSignInButton>Sign in with Google</GoogleSignInButton> */}
         <div className="text-center mt-4">
           <p>

@@ -3,7 +3,10 @@ CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "username" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
+    "password" TEXT,
+    "verifyCode" TEXT DEFAULT '',
+    "verifyCodeExpiry" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

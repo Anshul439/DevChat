@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import dotenv from "dotenv";
-import userRoutes from './routes/auth.route.js'
+import authRoutes from './routes/auth.route.js'
 import emailRoutes from './routes/email.route.js'
 import cors from 'cors'
 import cookieParser from 'cookie-parser';
@@ -26,5 +26,5 @@ app.listen(port, () => {
 
 app.use(cookieParser())
 
-app.use("/api", userRoutes);
+app.use("/api", authRoutes);
 app.use("/api", emailRoutes);

@@ -4,9 +4,11 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { z, ZodError } from "zod";
 import { emailVerify } from "../helpers/email";
+import axios from "axios";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
+
 
 // Zod Schemas
 const signupSchema = z.object({
@@ -81,16 +83,21 @@ export const signup = async (
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "1h",
     });
+    console.log(token);
 
     const options = {
       httpOnly: true,
       // secure: true
-    }
+    };
 
     res
       .status(201)
       .cookie("authToken", token, options)
-      .json({ message: "User created successfully", user });
+      .json({
+        message: "User created successful",
+        token,
+        user: { id: user.id, username: user.username, email: user.email },
+      });
   } catch (error) {
     res.status(500).json({ error: "An error occurred during signup" });
     console.error(error);
@@ -133,7 +140,7 @@ export const signin = async (
     const options = {
       httpOnly: true,
       // secure: true
-    }
+    };
 
     res
       .status(200)
@@ -149,6 +156,94 @@ export const signin = async (
   }
 };
 
+export const githubOauth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { code } = req.body;
+
+  try {
+    // Exchange code for access token
+    const tokenResponse = await axios.post(
+      "https://github.com/login/oauth/access_token",
+      {
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      },
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    // Get user data from GitHub
+    const userResponse = await axios.get("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const userData = userResponse.data;
+
+    // Fetch the user's email
+    const emailResponse = await axios.get("https://api.github.com/user/emails", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const emails = emailResponse.data;
+    const primaryEmail = emails.find(
+      (email: { primary: boolean; verified: boolean }) =>
+        email.primary && email.verified
+    )?.email;
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        id: userData.id,
+        login: userData.login,
+        email: primaryEmail || null, // Use the fetched primary email, or null if not available
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: primaryEmail }, { username: userData.login }],
+      },
+    });
+
+    if (!existingUser) {
+      await prisma.user.create({
+        data: { email: primaryEmail, password: null, username: userData.login, verifyCode: null, verifyCodeExpiry: null },
+      });
+
+      await prisma.user.update({
+        where: { email: primaryEmail },
+        data: { isVerified: true },
+      });
+    }
+
+    res.cookie("authToken", token, { httpOnly: true }).json({
+      success: true,
+      token,
+      user: { ...userData, email: primaryEmail}, // Include the email in the response
+    });
+  } catch (error) {
+    console.error("GitHub OAuth Error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Authentication failed",
+    });
+  }
+};
 
 
 export const checkUsername = async (
@@ -190,8 +285,6 @@ export const checkUsername = async (
     console.error(error);
   }
 };
-
-
 
 export const checkEmail = async (
   req: Request,

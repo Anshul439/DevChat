@@ -5,7 +5,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 // Middleware to check if user is authenticated
 const authenticateToken = (req, res, next) => {
   const token = req.cookies.authToken; // The authToken from the cookies
-  console.log(token);
+  // console.log(token);
   
 
   if (!token) {
@@ -14,7 +14,7 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log(decoded);
+    // console.log(decoded);
     
     req.user = decoded;
     next();
