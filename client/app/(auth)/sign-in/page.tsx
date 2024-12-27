@@ -28,6 +28,7 @@ import GoogleSignInButton from "@/components/GoogleSignInButton";
 import GithubButton from "@/components/GithubButton";
 
 export default function Signin() {
+  const [authError, setAuthError] = useState<string>("");
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
@@ -49,7 +50,7 @@ export default function Signin() {
 
   const onSubmit = async (data: z.infer<typeof SignInSchema>) => {
     setIsSubmitting(true);
-
+    setAuthError(""); // Clear previous errors
     try {
       const response = await axios.post<ApiResponse>(
         "http://localhost:8000/api/signin",
@@ -64,18 +65,13 @@ export default function Signin() {
       router.replace("/dashboard");
     } catch (error) {
       if (error instanceof AxiosError<ApiResponse>) {
-        const message = error.response?.data?.message || "Sign in failed";
-        toast({
-          title: "Error",
-          description: message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        });
+        // For authentication errors (401), show inline
+        if (error.response?.status === 401 || 404) {
+          setAuthError(
+            "Invalid email or password"
+          );
+          return;
+        }
       }
     } finally {
       setIsSubmitting(false);
@@ -119,6 +115,9 @@ export default function Signin() {
                 </FormItem>
               )}
             />
+            {authError && (
+              <div className="text-sm font-medium text-red-600 mt-1">{authError}</div>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
