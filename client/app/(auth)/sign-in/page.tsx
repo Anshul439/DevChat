@@ -24,8 +24,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
+import GoogleSignInButton from "@/components/GoogleButton";
 import GithubButton from "@/components/GithubButton";
+import GoogleButton from "@/components/GoogleButton";
 
 export default function Signin() {
   const [authError, setAuthError] = useState<string>("");
@@ -129,8 +130,12 @@ export default function Signin() {
             </Button>
           </form>
         </Form>
+
+        
+        <GoogleButton />
         <GithubButton />
-        {/* <GoogleSignInButton>Sign in with Google</GoogleSignInButton> */}
+
+
         <div className="text-center mt-4">
           <p>
             New to Chatter?{" "}

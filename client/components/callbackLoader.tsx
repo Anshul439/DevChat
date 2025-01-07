@@ -8,16 +8,20 @@ const LoadingPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
+  console.log(state);
+  console.log(code);
+  
 
   useEffect(() => {
-    if (code) {
-      exchangeCodeForToken(code);
+    if (code && state) {
+      exchangeCodeForToken(code, state);
     }
-  }, [code]);
+  }, [code, state]);
 
-  const exchangeCodeForToken = async (code: string) => {
+  const exchangeCodeForToken = async (code: string, state: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/github", {
+      const response = await fetch(`http://localhost:8000/api/auth/${state}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -30,7 +34,7 @@ const LoadingPage = () => {
       const data = await response.json();
       console.log(data);
 
-      if (data.success) {
+      if (data.success || data.token) {
         router.push("/dashboard");
       }
     } catch (error) {

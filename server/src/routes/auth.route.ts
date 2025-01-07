@@ -3,12 +3,11 @@ import {
   checkEmail,
   checkUsername,
   githubOauth,
+  googleOauth,
   signin,
   signup,
 } from "../controllers/auth.controller";
 import authenticateToken from "../middlewares/authenticateToken";
-import axios from "axios";
-import jwt from "jsonwebtoken";
 
 const router = express.Router();
 
@@ -18,6 +17,7 @@ router.post("/signin", signin);
 
 // Step 2: Handle GitHub OAuth callback
 router.post("/auth/github", githubOauth);
+router.post("/auth/google", googleOauth);
 
 router.get("/check-username", checkUsername);
 router.get("/check-email", checkEmail);

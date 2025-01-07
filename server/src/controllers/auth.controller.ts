@@ -9,7 +9,6 @@ import axios from "axios";
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 
-
 // Zod Schemas
 const signupSchema = z.object({
   email: z.string().email(),
@@ -123,7 +122,6 @@ export const signin = async (
       where: { email },
     });
     console.log(email);
-    
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -193,11 +191,14 @@ export const githubOauth = async (
     const userData = userResponse.data;
 
     // Fetch the user's email
-    const emailResponse = await axios.get("https://api.github.com/user/emails", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const emailResponse = await axios.get(
+      "https://api.github.com/user/emails",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
 
     const emails = emailResponse.data;
     const primaryEmail = emails.find(
@@ -224,7 +225,13 @@ export const githubOauth = async (
 
     if (!existingUser) {
       await prisma.user.create({
-        data: { email: primaryEmail, password: null, username: userData.login, verifyCode: null, verifyCodeExpiry: null },
+        data: {
+          email: primaryEmail,
+          password: null,
+          username: userData.login,
+          verifyCode: null,
+          verifyCodeExpiry: null,
+        },
       });
 
       await prisma.user.update({
@@ -236,7 +243,7 @@ export const githubOauth = async (
     res.cookie("authToken", token, { httpOnly: true }).json({
       success: true,
       token,
-      user: { ...userData, email: primaryEmail}, // Include the email in the response
+      user: { ...userData, email: primaryEmail }, // Include the email in the response
     });
   } catch (error) {
     console.error("GitHub OAuth Error:", error);
@@ -247,6 +254,83 @@ export const githubOauth = async (
   }
 };
 
+export const googleOauth = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const code = req.body.code as string;
+  console.log(req.body.code);
+
+  if (!code) {
+    return res.status(400).json({ error: "Authorization code not provided!" });
+  }
+
+  try {
+    // Exchange authorization code for access token and ID token
+    const tokenResponse = await axios.post(
+      "https://oauth2.googleapis.com/token",
+      {
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      },
+      { headers: { "Content-Type": "application/json" } }
+    );
+    console.log(tokenResponse);
+
+    const { id_token } = tokenResponse.data;
+
+    // Decode the ID token to extract user info
+    const userInfo = jwt.decode(id_token) as {
+      email: string;
+      name: string;
+      picture: string;
+    };
+
+    if (!userInfo || !userInfo.email) {
+      return res
+        .status(400)
+        .json({ error: "Invalid user information from Google." });
+    }
+
+    // Check if user exists in the database
+    let user = await prisma.user.findUnique({
+      where: { email: userInfo.email },
+    });
+
+    // If user does not exist, create a new user
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: userInfo.email,
+          username: userInfo.email.split("@")[0], // Default username
+          isVerified: true,
+        },
+      });
+    }
+
+    // Generate a JWT token for the authenticated user
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    res.cookie("authToken", token, { httpOnly: true }).json({
+      success: true,
+      token,
+      user: { email: userInfo.email, username: userInfo.email.split("@")[0] }, // Include the email in the response
+    });
+  } catch (error) {
+    console.error("Error during Google OAuth:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 export const checkUsername = async (
   req: Request,

@@ -1,11 +1,13 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { Github } from "lucide-react";
+import { FaGithub } from "react-icons/fa"; 
 
-const GithubSignInButton = () => {
+const GithubButton = () => {
   const handleGitHubLogin = () => {
-    const githubUrl = `https://github.com/login/oauth/authorize?client_id=Ov23lifkpWfABjLTfPVu&scope=user`;
+    const githubUrl = `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&scope=user&state=github`;
     window.location.href = githubUrl;
+    console.log(process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID);
+    
   };
   return (
     <Button
@@ -13,10 +15,10 @@ const GithubSignInButton = () => {
       className="w-full flex items-center justify-center gap-2"
       variant="outline"
     >
-      <Github className="w-5 h-5" />
+      <FaGithub className="w-5 h-5" /> 
       Continue with GitHub
     </Button>
   );
 };
 
-export default GithubSignInButton;
+export default GithubButton;

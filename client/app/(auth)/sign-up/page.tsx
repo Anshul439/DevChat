@@ -26,6 +26,7 @@ import Link from "next/link";
 // import GoogleSignInButton from "@/components/GoogleSignInButton";
 import useAuthStore from "@/store/useAuthStore";
 import GitHubButton from "@/components/GithubButton";
+import GoogleButton from "@/components/GoogleButton";
 
 export default function Signup() {
   const [username, setUsername] = useState("");
@@ -245,8 +246,12 @@ export default function Signup() {
             </Button>
           </form>
         </Form>
+        
+
+        <GoogleButton />
         <GitHubButton />
-        {/* <GoogleSignInButton>Sign up with Google</GoogleSignInButton> */}
+        
+
         <div className="text-center mt-4">
           <p>
             Already a member?{" "}
