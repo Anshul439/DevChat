@@ -73,10 +73,14 @@ export const signup = async (
     const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verifyCodeExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    await prisma.user.update({
-      where: { email },
-      data: { verifyCode, verifyCodeExpiry },
+    await prisma.userVerification.create({
+      data: {
+        userId: user.id,
+        verifyCode,
+        verifyCodeExpiry,
+      },
     });
+
 
     await emailVerify(email, username, verifyCode);
 

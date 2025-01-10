@@ -25,21 +25,33 @@ export const verifyCode = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Check if the code matches and hasn't expired
-    if (user.verifyCode !== otpValue) {
+    const userVerification = await prisma.userVerification.findFirst({
+      where: { userId: user.id },
+    });
+
+    if (!userVerification) {
+      res.status(404).json({ error: "Verification record not found." });
+      return;
+    }
+
+    if (userVerification.verifyCode !== otpValue) {
       res.status(400).json({ error: "Invalid verification code." });
       return;
     }
 
-    if (user.verifyCodeExpiry && new Date(user.verifyCodeExpiry) < new Date()) {
+    if (userVerification.verifyCodeExpiry && new Date(userVerification.verifyCodeExpiry) < new Date()) {
       res.status(400).json({ error: "Verification code has expired." });
       return;
     }
 
-    // Update the user's status to verified
     await prisma.user.update({
       where: { email },
-      data: { verifyCode: null, verifyCodeExpiry: null, isVerified: true },
+      data: { isVerified: true },
+    });
+
+    // Delete the verification record after successful verification
+    await prisma.userVerification.delete({
+      where: { userId: user.id },
     });
 
     res.status(200).json({ message: "Verification successful. Your email is now verified." });
