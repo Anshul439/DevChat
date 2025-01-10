@@ -1,8 +1,10 @@
-'use client'
+'use client';
 
 import { MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
+import { useThemeStore } from "@/store/useThemeStore"; // Import Zustand store for theme management
+import { ThemeToggle } from "./ThemeToggle";
 
 const Navbar = () => {
   const router = useRouter();
@@ -58,6 +60,9 @@ const Navbar = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
+            <ThemeToggle />
+
+            {/* Sign In and Get Started Buttons */}
             <Button
               variant="outline"
               className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white dark:border-orange-500 dark:text-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition duration-300"
