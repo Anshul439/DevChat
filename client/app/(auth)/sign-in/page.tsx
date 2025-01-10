@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import GoogleSignInButton from "@/components/GoogleButton";
 import GithubButton from "@/components/GithubButton";
 import GoogleButton from "@/components/GoogleButton";
 
@@ -86,7 +85,6 @@ export default function Signin() {
           <h1 className="text-4xl font-extrabold tracking-light lg:text-5xl mb-6">
             Join Chatter
           </h1>
-          <p className="mb-4">Sign In</p>
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

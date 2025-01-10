@@ -7,13 +7,14 @@ import { emailVerify } from "../helpers/email";
 import axios from "axios";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
+const JWT_SECRET = process.env.JWT_SECRET!;
 
 // Zod Schemas
 const signupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6, "Password must be at least 6 characters long"),
+  fullName: z.string().min(3, "Name must be at least 3 characters long"),
   username: z.string().min(3, "Username must be at least 3 characters long"),
+  password: z.string().min(6, "Password must be at least 6 characters long"),
 });
 
 const signinSchema = z.object({
@@ -49,7 +50,7 @@ export const signup = async (
     return;
   }
 
-  const { email, password, username } = validation.data;
+  const { email, fullName, username, password } = validation.data;
 
   try {
     const existingUser = await prisma.user.findFirst({
@@ -66,7 +67,7 @@ export const signup = async (
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, username },
+      data: { email, fullName, username, password: hashedPassword },
     });
 
     const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -95,7 +96,7 @@ export const signup = async (
       .json({
         message: "User created successfully",
         token,
-        user: { id: user.id, username: user.username, email: user.email },
+        user: { id: user.id, email: user.email, fullName: user.fullName, username: user.username },
       });
   } catch (error) {
     res.status(500).json({ error: "An error occurred during signup" });
@@ -189,6 +190,8 @@ export const githubOauth = async (
     });
 
     const userData = userResponse.data;
+    console.log(userResponse.data.name);
+    
 
     // Fetch the user's email
     const emailResponse = await axios.get(
@@ -210,10 +213,11 @@ export const githubOauth = async (
     const token = jwt.sign(
       {
         id: userData.id,
-        login: userData.login,
         email: primaryEmail || null, // Use the fetched primary email, or null if not available
+        fullName: userData.name,
+        username: userData.login,
       },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: "24h" }
     );
 
@@ -227,8 +231,9 @@ export const githubOauth = async (
       await prisma.user.create({
         data: {
           email: primaryEmail,
-          password: null,
+          fullName: userData.name,
           username: userData.login,
+          password: null,
           verifyCode: null,
           verifyCodeExpiry: null,
         },
@@ -290,6 +295,9 @@ export const googleOauth = async (
       picture: string;
     };
 
+    console.log(userInfo.name);
+    
+
     if (!userInfo || !userInfo.email) {
       return res
         .status(400)
@@ -306,6 +314,7 @@ export const googleOauth = async (
       user = await prisma.user.create({
         data: {
           email: userInfo.email,
+          fullName: userInfo.name,
           username: userInfo.email.split("@")[0], // Default username
           isVerified: true,
         },
@@ -315,7 +324,7 @@ export const googleOauth = async (
     // Generate a JWT token for the authenticated user
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET!,
+      JWT_SECRET,
       {
         expiresIn: "1h",
       }

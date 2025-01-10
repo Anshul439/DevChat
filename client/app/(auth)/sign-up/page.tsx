@@ -47,8 +47,9 @@ export default function Signup() {
   const form = useForm<z.infer<typeof SignUpSchema>>({
     resolver: zodResolver(SignUpSchema),
     defaultValues: {
-      username: "",
       email: "",
+      fullName: "",
+      username: "",
       password: "",
     },
   });
@@ -110,8 +111,6 @@ export default function Signup() {
     checkEmailUnique();
   }, [email]);
 
-  
-
   const onSubmit = async (data: z.infer<typeof SignUpSchema>) => {
     setIsSubmitting(true);
     try {
@@ -148,45 +147,9 @@ export default function Signup() {
           <h1 className="text-4xl font-extrabold tracking-light lg:text-5xl mb-6">
             Join Chatter
           </h1>
-          <p className="mb-4">Sign Up</p>
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              name="username"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="username"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        debouncedUsername(e.target.value);
-                      }}
-                    />
-                  </FormControl>
-                  {isCheckingUsername && <Loader2 className="animate-spin" />}
-
-                  {/* Only show one message at a time */}
-                  {!fieldState.error ? (
-                    <p
-                      className={`text-sm ${
-                        usernameMessage === "Username is available"
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {usernameMessage}
-                    </p>
-                  ) : (
-                    <FormMessage />
-                  )}
-                </FormItem>
-              )}
-            />
             <FormField
               name="email"
               control={form.control}
@@ -195,7 +158,7 @@ export default function Signup() {
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="email"
+                      placeholder="Email"
                       {...field}
                       onChange={(e) => {
                         field.onChange(e);
@@ -222,6 +185,57 @@ export default function Signup() {
                 </FormItem>
               )}
             />
+
+            <FormField
+              name="fullName"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormControl>
+                    <Input type="fullName" placeholder="Full Name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              name="username"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Username"
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        debouncedUsername(e.target.value);
+                      }}
+                    />
+                  </FormControl>
+                  {isCheckingUsername && <Loader2 className="animate-spin" />}
+
+                  {/* Only show one message at a time */}
+                  {!fieldState.error ? (
+                    <p
+                      className={`text-sm ${
+                        usernameMessage === "Username is available"
+                          ? "text-green-500"
+                          : "text-red-500"
+                      }`}
+                    >
+                      {usernameMessage}
+                    </p>
+                  ) : (
+                    <FormMessage />
+                  )}
+                </FormItem>
+              )}
+            />
+
             <FormField
               name="password"
               control={form.control}
@@ -229,12 +243,13 @@ export default function Signup() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="password" {...field} />
+                    <Input type="password" placeholder="Password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
@@ -246,11 +261,9 @@ export default function Signup() {
             </Button>
           </form>
         </Form>
-        
 
         <GoogleButton />
         <GitHubButton />
-        
 
         <div className="text-center mt-4">
           <p>
