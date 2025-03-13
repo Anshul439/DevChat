@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import useAuthStore from '@/store/useAuthStore';
+import useAuthStore from '@/store/authStore';
 
 export default function AuthGuard({
   children

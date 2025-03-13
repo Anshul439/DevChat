@@ -3,7 +3,7 @@
 import { MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
-import { useThemeStore } from "@/store/useThemeStore"; // Import Zustand store for theme management
+import { useThemeStore } from "@/store/themeStore"; // Import Zustand store for theme management
 import { ThemeToggle } from "./ThemeToggle";
 
 const Navbar = () => {

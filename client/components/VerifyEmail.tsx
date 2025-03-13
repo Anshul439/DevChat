@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button"; // Assuming you have a Button component
-import useAuthStore from "@/store/useAuthStore";
+import { Button } from "@/components/ui/button";
+import useAuthStore from "@/store/authStore";
 
 const VerifyPage = () => {
-  const { username } = useParams();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -21,7 +20,6 @@ const VerifyPage = () => {
     newOtp[index] = e.target.value;
     setOtp(newOtp);
 
-    // Focus on the next input field if the user has entered a digit
     if (e.target.value && index < 5) {
       const nextInput = document.getElementById(
         `otp-${index + 1}`
@@ -33,12 +31,10 @@ const VerifyPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Join OTP digits to form the complete OTP
     const otpValue = otp.join("");
     setIsSubmitting(true);
 
     try {
-      // Call your API to verify the OTP (this is just an example)
       const response = await fetch("http://localhost:8000/api/verifyCode", {
         method: "POST",
         body: JSON.stringify({ email, otpValue }),
@@ -54,7 +50,6 @@ const VerifyPage = () => {
       if (data.message) {
         router.replace("/dashboard");
       } else {
-        // Handle failure (e.g., invalid OTP)
         alert("Invalid OTP. Please try again.");
       }
     } catch (error) {

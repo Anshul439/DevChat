@@ -1,7 +1,7 @@
 // components/providers/theme-provider.tsx
 'use client'
 
-import { useThemeStore } from '@/store/useThemeStore'
+import { useThemeStore } from '@/store/themeStore'
 import { useEffect } from 'react'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

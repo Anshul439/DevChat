@@ -24,10 +24,10 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 // import GoogleSignInButton from "@/components/GoogleSignInButton";
-import useAuthStore from "@/store/useAuthStore";
+import useAuthStore from "@/store/authStore";
 import GitHubButton from "@/components/GithubButton";
 import GoogleButton from "@/components/GoogleButton";
-import { useThemeStore } from "@/store/useThemeStore";
+import { useThemeStore } from "@/store/themeStore";
 
 export default function Signup() {
 

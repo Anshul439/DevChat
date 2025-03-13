@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
-import { emailVerify } from "../helpers/email";
+import { sendVerificationEmail } from "../helpers/email";
 
 const prisma = new PrismaClient();
 
@@ -95,7 +95,7 @@ export const resendEmail = async (req: Request, res: Response): Promise<void> =>
     });
 
     // Send the new verification email
-    await emailVerify(email, user.username, newVerifyCode);
+    await sendVerificationEmail(email, user.username, newVerifyCode);
 
     res.status(200).json({ message: "Verification email resent successfully." });
   } catch (error) {

@@ -2,11 +2,8 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 
-// Middleware to check if user is authenticated
 const authenticateToken = (req, res, next) => {
-  const token = req.cookies.authToken; // The authToken from the cookies
-  // console.log(token);
-  
+  const token = req.cookies.authToken;
 
   if (!token) {
     return res.status(401).json({ message: 'Authentication required' }); // No token, send 401
@@ -14,7 +11,6 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // console.log(decoded);
     
     req.user = decoded;
     next();

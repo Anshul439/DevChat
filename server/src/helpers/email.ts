@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export const emailVerify = async (email: string, username: string, verifyCode: string): Promise<void> => {
+export const sendVerificationEmail = async (email: string, username: string, verifyCode: string): Promise<void> => {
     try {
       await resend.emails.send({
         from: "Chatter <noreply@anshulwadhwa.me>",

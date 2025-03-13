@@ -1,7 +1,7 @@
 import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
-import { useThemeStore } from "@/store/useThemeStore";
+import { useThemeStore } from "@/store/themeStore";
 import { useEffect } from "react";
 import { ThemeProvider } from "@/components/themeProvider";
 import { themeScript } from "@/lib/themeScript";

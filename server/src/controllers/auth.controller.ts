@@ -2,41 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { z, ZodError } from "zod";
-import { emailVerify } from "../helpers/email";
+import { sendVerificationEmail } from "../helpers/email";
 import axios from "axios";
+import { checkEmailSchema, checkUsernameSchema, signinSchema, signupSchema } from "../schemas/authSchema";
+import { formatZodError } from "../helpers/formatZodError";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET!;
-
-// Zod Schemas
-const signupSchema = z.object({
-  email: z.string().email(),
-  fullName: z.string().min(3, "Name must be at least 3 characters long"),
-  username: z.string().min(3, "Username must be at least 3 characters long"),
-  password: z.string().min(6, "Password must be at least 6 characters long"),
-});
-
-const signinSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6, "Password must be at least 6 characters long"),
-});
-
-const checkUsernameSchema = z.object({
-  username: z.string().nonempty("Username is required"),
-});
-
-const checkEmailSchema = z.object({
-  email: z.string().nonempty("Email is required"),
-});
-
-// Utility function to format Zod errors
-export const formatZodError = (error: ZodError) => {
-  return error.errors.map((err) => ({
-    path: err.path.join("."),
-    message: err.message,
-  }));
-};
 
 export const signup = async (
   req: Request,
@@ -82,7 +54,7 @@ export const signup = async (
     });
 
 
-    await emailVerify(email, username, verifyCode);
+    await sendVerificationEmail(email, username, verifyCode);
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "1h",
@@ -238,8 +210,8 @@ export const githubOauth = async (
           fullName: userData.name,
           username: userData.login,
           password: null,
-          verifyCode: null,
-          verifyCodeExpiry: null,
+          // verifyCode: null,
+          // verifyCodeExpiry: null,
         },
       });
 
