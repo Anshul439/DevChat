@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
-import { sendVerificationEmail } from "../helpers/email";
+import { sendVerificationEmail } from "../utils/email";
 
 const prisma = new PrismaClient();
 

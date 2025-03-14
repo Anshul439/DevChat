@@ -2,10 +2,11 @@ import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { sendVerificationEmail } from "../helpers/email";
+import { sendVerificationEmail } from "../utils/email";
 import axios from "axios";
 import { checkEmailSchema, checkUsernameSchema, signinSchema, signupSchema } from "../schemas/authSchema";
-import { formatZodError } from "../helpers/formatZodError";
+import { formatZodError } from "../utils/formatZodError";
+import { sendSuccess, sendError } from "../utils/responseHandler";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET!;

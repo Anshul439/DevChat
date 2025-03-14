@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
@@ -15,7 +15,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800">
+    <header className="sticky top-0 z-50 backdrop-blur-sm bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800">
       <div className="container mx-auto px-10 relative">
         <div className="h-16 flex items-center justify-between">
           {/* Logo and Name */}
@@ -24,7 +24,7 @@ const Navbar = () => {
               <MessageCircle className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold text-orange-600 dark:text-orange-500">
-              Chatter
+              DevChat
             </span>
           </div>
 
@@ -57,7 +57,6 @@ const Navbar = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
-
             {/* Sign In and Get Started Buttons */}
             <Button
               variant="outline"

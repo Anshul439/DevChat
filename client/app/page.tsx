@@ -164,7 +164,7 @@ const LandingPage = () => {
                 name: "Sarah Johnson",
                 role: "CEO, Tech Innovations",
                 quote:
-                  "Chatter has revolutionized how our team communicates. It's secure, fast, and incredibly intuitive.",
+                  "DevChat has revolutionized how our team communicates. It's secure, fast, and incredibly intuitive.",
                 rating: 5,
               },
               {
@@ -178,7 +178,7 @@ const LandingPage = () => {
                 name: "Emily Chen",
                 role: "Project Manager, Creative Agency",
                 quote:
-                  "End-to-end encryption gives us peace of mind. Chatter is now our go-to communication platform.",
+                  "End-to-end encryption gives us peace of mind. DevChat is now our go-to communication platform.",
                 rating: 5,
               },
             ].map((testimonial, index) => (
@@ -273,7 +273,7 @@ const LandingPage = () => {
       <section className="py-16 bg-white dark:bg-gray-900" id="contact">
         <div className="container mx-auto px-6 md:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl pb- md:text-4xl font-bold">Contact Us</h2>
+            <h2 className="text-3xl pb-4 md:text-4xl font-bold">Contact Us</h2>
             <p className="text-gray-600 dark:text-gray-300 max-w-xl mx-auto">
               Have questions or need help? Reach out to us, and we’ll get back
               to you as soon as possible.
@@ -338,14 +338,14 @@ const LandingPage = () => {
       {/* Footer */}
       <footer className="bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
         <div className="container mx-auto px-6 md:px-16 py-12">
-          <div className="grid md:grid-cols-4 gap-12">
+          <div className="grid md:grid-cols-4 gap-40">
             <div className="space-y-4">
               <div className="flex items-center space-x-3">
                 <div className="bg-orange-600 dark:bg-orange-500 p-2 rounded-lg">
                   <MessageCircle className="h-5 w-5 text-white" />
                 </div>
                 <span className="text-xl font-bold text-orange-600 dark:text-orange-500">
-                  Chatter
+                DevChat
                 </span>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -415,7 +415,7 @@ const LandingPage = () => {
           <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
             <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
               <div className="text-sm text-gray-600 dark:text-gray-300">
-                © {new Date().getFullYear()} Chatter. All rights reserved.
+                © {new Date().getFullYear()} DevChat. All rights reserved.
               </div>
               <div className="flex space-x-6 text-sm text-gray-600 dark:text-gray-300">
                 <a
