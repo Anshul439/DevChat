@@ -1,19 +1,19 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { FaGoogle } from "react-icons/fa"; 
+import { FaGoogle } from "react-icons/fa";
 
 const GoogleButton = () => {
-
   const params = new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
     redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI!,
-    response_type: 'code',
-    scope: 'openid email profile',
+    response_type: "code",
+    scope: "openid email profile",
+    prompt: "select_account",
   }).toString();
 
   const handleGoogleLogin = () => {
-    const githubUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}&state=google`;
-    window.location.href = githubUrl;
+    const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}&state=google`;
+    window.location.href = googleUrl;
   };
   return (
     <Button
