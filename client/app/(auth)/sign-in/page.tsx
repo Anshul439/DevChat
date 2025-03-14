@@ -67,9 +67,7 @@ export default function Signin() {
       if (error instanceof AxiosError<ApiResponse>) {
         // For authentication errors (401), show inline
         if (error.response?.status === 401 || 404) {
-          setAuthError(
-            "Invalid email or password"
-          );
+          setAuthError("Invalid email or password");
           return;
         }
       }
@@ -79,8 +77,8 @@ export default function Signin() {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white dark:bg-gray-800 rounded-lg  shadow-md">
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg  shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-light lg:text-5xl mb-6">
             Join Chatter
@@ -115,7 +113,9 @@ export default function Signin() {
               )}
             />
             {authError && (
-              <div className="text-sm font-medium text-red-600 mt-1">{authError}</div>
+              <div className="text-sm font-medium text-red-600 mt-1">
+                {authError}
+              </div>
             )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
@@ -129,10 +129,8 @@ export default function Signin() {
           </form>
         </Form>
 
-        
         <GoogleButton />
         <GithubButton />
-
 
         <div className="text-center mt-4">
           <p>

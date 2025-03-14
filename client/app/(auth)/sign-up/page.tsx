@@ -27,12 +27,8 @@ import Link from "next/link";
 import useAuthStore from "@/store/authStore";
 import GitHubButton from "@/components/GithubButton";
 import GoogleButton from "@/components/GoogleButton";
-import { useThemeStore } from "@/store/themeStore";
 
 export default function Signup() {
-
-  const { theme } = useThemeStore(); 
-
   const [username, setUsername] = useState("");
   const [email, setEmaill] = useState(""); // for checking email availability
   const [usernameMessage, setUsernameMessage] = useState("");
@@ -145,8 +141,8 @@ export default function Signup() {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-light lg:text-5xl mb-6">
             Join Chatter

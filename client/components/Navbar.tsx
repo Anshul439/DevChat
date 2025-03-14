@@ -3,9 +3,6 @@
 import { MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
-import { useThemeStore } from "@/store/themeStore"; // Import Zustand store for theme management
-import { ThemeToggle } from "./ThemeToggle";
-
 const Navbar = () => {
   const router = useRouter();
 
@@ -60,7 +57,6 @@ const Navbar = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
-            <ThemeToggle />
 
             {/* Sign In and Get Started Buttons */}
             <Button

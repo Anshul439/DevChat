@@ -1,10 +1,6 @@
 import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
-import { useThemeStore } from "@/store/themeStore";
-import { useEffect } from "react";
-import { ThemeProvider } from "@/components/themeProvider";
-import { themeScript } from "@/lib/themeScript";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -24,21 +20,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: themeScript,
-          }}
-        />
-      </head>
-      <ThemeProvider>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          {children}
-          <Toaster />
-        </body>
-      </ThemeProvider>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
