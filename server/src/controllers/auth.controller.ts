@@ -4,12 +4,21 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
 import { sendVerificationEmail } from "../utils/email";
 import axios from "axios";
-import { checkEmailSchema, checkUsernameSchema, signinSchema, signupSchema } from "../schemas/authSchema";
+import {
+  checkEmailSchema,
+  checkUsernameSchema,
+  signinSchema,
+  signupSchema,
+} from "../schemas/authSchema";
 import { formatZodError } from "../utils/formatZodError";
-import { sendSuccess, sendError } from "../utils/responseHandler";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET!;
+
+const options = {
+  httpOnly: true,
+  // secure: true
+};
 
 export const signup = async (
   req: Request,
@@ -54,7 +63,6 @@ export const signup = async (
       },
     });
 
-
     await sendVerificationEmail(email, username, verifyCode);
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
@@ -62,18 +70,18 @@ export const signup = async (
     });
     console.log(token);
 
-    const options = {
-      httpOnly: true,
-      // secure: true
-    };
-
     res
       .status(201)
       .cookie("authToken", token, options)
       .json({
         message: "User created successfully",
         token,
-        user: { id: user.id, email: user.email, fullName: user.fullName, username: user.username },
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          username: user.username,
+        },
       });
   } catch (error) {
     res.status(500).json({ error: "An error occurred during signup" });
@@ -114,11 +122,6 @@ export const signin = async (
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "1h",
     });
-
-    const options = {
-      httpOnly: true,
-      // secure: true
-    };
 
     res
       .status(200)
@@ -168,7 +171,6 @@ export const githubOauth = async (
 
     const userData = userResponse.data;
     console.log(userResponse.data.name);
-    
 
     // Fetch the user's email
     const emailResponse = await axios.get(
@@ -273,7 +275,6 @@ export const googleOauth = async (
     };
 
     console.log(userInfo.name);
-    
 
     if (!userInfo || !userInfo.email) {
       return res
@@ -299,13 +300,9 @@ export const googleOauth = async (
     }
 
     // Generate a JWT token for the authenticated user
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
-    );
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     res.cookie("authToken", token, { httpOnly: true }).json({
       success: true,
@@ -395,5 +392,19 @@ export const checkEmail = async (
       message: "An error occurred while checking email availability",
     });
     console.error(error);
+  }
+};
+
+export const logout = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    res.clearCookie("authToken", options);
+    res.status(200).json({ message: "Sign out successful" });
+  } catch (error) {
+    console.error("Error during signout:", error);
+    res.status(500).json({ error: "An error occurred during signout" });
   }
 };

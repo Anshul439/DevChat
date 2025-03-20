@@ -3,18 +3,18 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 interface AuthStore {
-  tokenResponse: boolean | null;
+  token: string | null;
   email: string | null;
-  setTokenResponse: (tokenResponse: boolean) => void;
+  setToken: (token: string) => void;
   setEmail: (email: string) => void;
 }
 
 const useAuthStore = create<AuthStore>()(
   persist(
     (set) => ({
-      tokenResponse: null,
+      token: null,
       email: null,
-      setTokenResponse: (tokenResponse) => set({ tokenResponse }),
+      setToken: (token) => set({ token }),
       setEmail: (email) => set({ email }),
     }),
     {

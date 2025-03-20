@@ -1,50 +1,33 @@
-'use client'
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import useAuthStore from '@/store/authStore';
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import useAuthStore from "@/store/authStore";
+import axios from "axios";
 
-export default function AuthGuard({
-  children
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const { setTokenResponse } = useAuthStore();
+  const { setToken, setEmail } = useAuthStore();
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/validate-token', {
-          credentials: 'include'
+        await axios.get("http://localhost:8000/api/validate-token", {
+          withCredentials: true,
         });
-        
-        setTokenResponse(response.ok);
-
-        if (!response.ok) {
-          router.push('/sign-in');
-          return;
-        }
-
-        setIsLoading(false);
+        setIsLoading(false); // User is authenticated
       } catch (error) {
-        console.error('Auth error:', error);
-        router.push('/');
+        console.log(error);
+        setToken(false); // Clear the token
+        setEmail(null); // Clear the email
+        router.push("/"); // Redirect if unauthorized
       }
     };
 
     checkAuth();
-  }, [router, setTokenResponse]);
+  }, [router]);
 
-  // Add check for window object to handle hydration
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || isLoading) {
-    return <div>Loading...</div>;
-  }
+  if (isLoading) return <div>Loading...</div>; // Show a loader while checking auth
 
   return <>{children}</>;
 }

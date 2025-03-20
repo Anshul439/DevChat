@@ -3,15 +3,27 @@
 import { MessageCircle } from "lucide-react";
 import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
+import useAuthStore from "@/store/authStore"; // Import the auth store
+import axios from "axios";
+import { ApiResponse } from "@/types/ApiResponse";
+
 const Navbar = () => {
   const router = useRouter();
+  const { email, setToken, setEmail } = useAuthStore(); // Get email and logout functions
+  console.log(email);
 
-  const handleSignUp = () => {
-    router.push("/sign-up");
-  };
-
-  const handleSignIn = () => {
-    router.push("/sign-in");
+  // Handle logout
+  const handleLogout = async() => {
+    const response = await axios.post<ApiResponse>(
+      "http://localhost:8000/api/logout",
+      { withCredentials: true }
+    );
+    console.log(response);
+    
+    setToken(""); // Clear the token
+    setEmail(""); // Clear the email
+    router.push("/sign-in"); // Redirect to the sign-in page
+    console.log("hi");
   };
 
   return (
@@ -28,49 +40,68 @@ const Navbar = () => {
             </span>
           </div>
 
-          {/* Navigation - centered */}
-          <nav className="hidden md:flex items-center space-x-8 absolute left-1/2 transform -translate-x-1/2">
-            <a
-              href="#features"
-              className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
-            >
-              Features
-            </a>
-            <a
-              href="#testimonials"
-              className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
-            >
-              Testimonials
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
-            >
-              Pricing
-            </a>
-            <a
-              href="#about"
-              className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
-            >
-              About
-            </a>
-          </nav>
+          {/* Navigation - centered (only shown when not logged in) */}
+          {!email && (
+            <nav className="hidden md:flex items-center space-x-8 absolute left-1/2 transform -translate-x-1/2">
+              <a
+                href="#features"
+                className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
+              >
+                Features
+              </a>
+              <a
+                href="#testimonials"
+                className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
+              >
+                Testimonials
+              </a>
+              <a
+                href="#pricing"
+                className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
+              >
+                Pricing
+              </a>
+              <a
+                href="#about"
+                className="text-sm font-medium hover:text-orange-600 dark:hover:text-orange-500 transition"
+              >
+                About
+              </a>
+            </nav>
+          )}
 
+          {/* Show email and logout button if logged in, otherwise show sign-in and get-started buttons */}
           <div className="flex items-center space-x-4">
-            {/* Sign In and Get Started Buttons */}
-            <Button
-              variant="outline"
-              className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white dark:border-orange-500 dark:text-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition duration-300"
-              onClick={handleSignIn}
-            >
-              Sign In
-            </Button>
-            <Button
-              className="bg-orange-600 dark:bg-orange-500 text-white hover:bg-orange-700 dark:hover:bg-orange-600 transition duration-300"
-              onClick={handleSignUp}
-            >
-              Get Started
-            </Button>
+            {email ? (
+              <>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {email}
+                </span>
+                <Button
+                  variant="outline"
+                  className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white dark:border-orange-500 dark:text-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition duration-300"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white dark:border-orange-500 dark:text-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition duration-300"
+                  onClick={() => router.push("/sign-in")}
+                >
+                  Sign In
+                </Button>
+                <Button
+                  className="bg-orange-600 dark:bg-orange-500 text-white hover:bg-orange-700 dark:hover:bg-orange-600 transition duration-300"
+                  onClick={() => router.push("/sign-up")}
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

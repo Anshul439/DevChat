@@ -19,11 +19,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Loader2,
-  MessageCircle,
-  ArrowLeft,
-} from "lucide-react";
+import { Loader2, MessageCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import useAuthStore from "@/store/authStore";
 import GitHubButton from "@/components/GithubButton";
@@ -36,6 +32,8 @@ export default function Signin() {
   const { setToken } = useAuthStore();
   const { toast } = useToast();
   const router = useRouter();
+
+  const setEmail = useAuthStore((state) => state.setEmail);
 
   const form = useForm<z.infer<typeof SignInSchema>>({
     resolver: zodResolver(SignInSchema),
@@ -54,6 +52,10 @@ export default function Signin() {
         data,
         { withCredentials: true }
       );
+      console.log(response);
+      
+      setEmail(response.data.user.email);
+      setToken(response.data.token);
 
       toast({
         title: "Success",
@@ -62,7 +64,10 @@ export default function Signin() {
       router.replace("/dashboard");
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
-      if (axiosError.response?.status === 401 || axiosError.response?.status === 404) {
+      if (
+        axiosError.response?.status === 401 ||
+        axiosError.response?.status === 404
+      ) {
         setAuthError("Invalid email or password");
       } else {
         toast({
@@ -165,7 +170,8 @@ export default function Signin() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing
+                      in...
                     </>
                   ) : (
                     "Sign In"

@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import useAuthStore from "@/store/authStore";
 
 const LoadingPage = () => {
   const router = useRouter();
@@ -11,7 +12,8 @@ const LoadingPage = () => {
   const state = searchParams.get("state");
   console.log(state);
   console.log(code);
-  
+
+  const { setEmail, setToken } = useAuthStore();
 
   useEffect(() => {
     if (code && state) {
@@ -33,6 +35,9 @@ const LoadingPage = () => {
 
       const data = await response.json();
       console.log(data);
+
+      setEmail(data.user.email);
+      setToken(data.token);
 
       if (data.success || data.token) {
         router.push("/dashboard");
