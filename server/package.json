@@ -26,14 +26,16 @@
     "passport": "^0.7.0",
     "passport-google-oauth2": "^0.2.0",
     "resend": "^4.0.1",
+    "socket.io": "^4.8.1",
     "uuid": "^11.0.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/cookie-parser": "^1.4.8",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.8.6",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.10",
+    "@types/socket.io": "^3.0.2",
     "concurrently": "^9.0.1",
     "nodemon": "^3.1.7",
     "prisma": "^6.0.1",

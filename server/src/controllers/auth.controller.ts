@@ -68,7 +68,7 @@ export const signup = async (
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "1h",
     });
-    console.log(token);
+    // console.log(token);
 
     res
       .status(201)
@@ -107,7 +107,7 @@ export const signin = async (
     const user = await prisma.user.findUnique({
       where: { email },
     });
-    console.log(email);
+    // console.log(email);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -244,7 +244,7 @@ export const googleOauth = async (
   next: NextFunction
 ): Promise<void> => {
   const code = req.body.code as string;
-  console.log(req.body.code);
+  // console.log(req.body.code);
 
   if (!code) {
     return res.status(400).json({ error: "Authorization code not provided!" });
@@ -263,9 +263,11 @@ export const googleOauth = async (
       },
       { headers: { "Content-Type": "application/json" } }
     );
-    console.log(tokenResponse);
+    // console.log(tokenResponse);
 
     const { id_token } = tokenResponse.data;
+    console.log(id_token, "HIIIIIIIIIIIIIIIIIIII");
+    
 
     // Decode the ID token to extract user info
     const userInfo = jwt.decode(id_token) as {
