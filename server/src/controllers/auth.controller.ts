@@ -57,11 +57,14 @@ export const signup = async (
 
     await prisma.userVerification.create({
       data: {
-        id: user.id,
         verifyCode,
         verifyCodeExpiry,
+        user: {
+          connect: { id: user.id }, // Connect the existing user
+        },
       },
     });
+    
 
     await sendVerificationEmail(email, username, verifyCode);
 
@@ -211,7 +214,6 @@ export const githubOauth = async (
         data: { isVerified: true },
       });
     }
-
     // Create JWT token
     const token = jwt.sign(
       {
@@ -220,7 +222,7 @@ export const githubOauth = async (
         fullName: existingUser.fullName,
         username: existingUser.username,
       },
-      JWT_SECRET,
+      JWT_SECRET
       // { expiresIn: "1h" }
     );
 
@@ -267,7 +269,6 @@ export const googleOauth = async (
 
     const { id_token } = tokenResponse.data;
     console.log(id_token, "HIIIIIIIIIIIIIIIIIIII");
-    
 
     // Decode the ID token to extract user info
     const userInfo = jwt.decode(id_token) as {

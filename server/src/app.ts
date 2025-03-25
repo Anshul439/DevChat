@@ -5,20 +5,24 @@ import express, { Request, Response } from "express";
 import authRoutes from "./routes/auth.route.js";
 import emailRoutes from "./routes/email.route.js";
 import userRoutes from "./routes/user.route.js";
+import messageRoutes from "./routes/message.route.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { PrismaClient } from "@prisma/client";
 
 const app = express();
 app.use(express.json());
 const port = process.env.PORT;
 
+const prisma = new PrismaClient();
+
 const corsOptions = {
   origin: "http://localhost:3000", // Replace with your Next.js frontend URL
   methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
   credentials: true, // Allow cookies if needed
-}; 
+};
 
 app.use(cors(corsOptions));
 
@@ -41,26 +45,33 @@ server.listen(port, () => {
 io.on("connection", (socket) => {
   console.log("User connected", socket.id);
 
-  // Handle joining a private room
   socket.on("join-room", (data) => {
     const { sender, receiver } = data;
     const users = [sender, receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
-    
+
     console.log(`${sender} joining room: ${roomName}`);
     socket.join(roomName);
   });
 
-  // Handle private messages
-  socket.on("message", (data) => {
-    const { text, sender, receiver } = data;
-    console.log(`Message from ${sender} to ${receiver}: ${text}`);
+  socket.on('message', async (data) => {
+    // Only store if explicitly requested
+    if (data.store) {
+      const message = await prisma.message.create({
+        data: {
+          text: data.text,
+          sender: data.sender,
+          receiver: data.receiver,
+        },
+      });
+      data.id = message.id;
+      data.createdAt = message.createdAt;
+    }
     
-    const users = [sender, receiver].sort();
+    // Broadcast to room
+    const users = [data.sender, data.receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
-    
-    // Emit the message to the room, excluding the sender
-    socket.broadcast.to(roomName).emit("receive-message", data);
+    socket.broadcast.to(roomName).emit('receive-message', data);
   });
 
   socket.on("disconnect", () => {
@@ -78,3 +89,4 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/message", messageRoutes);

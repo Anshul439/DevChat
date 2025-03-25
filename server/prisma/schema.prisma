@@ -29,3 +29,16 @@ model UserVerification {
 
   user User @relation(fields: [userId], references: [id])
 }
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  text      String
+  sender    String   // email of the sender
+  receiver  String   // email of the receiver
+  createdAt DateTime @default(now())
+
+  // Indexes for faster querying
+  // @@index([sender])
+  // @@index([receiver])
+  // @@index([sender, receiver])
+}
