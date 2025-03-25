@@ -18,8 +18,8 @@ router.post("/logout", logout);
 
 
 // Step 2: Handle GitHub OAuth callback
-router.post("/auth/github", githubOauth);
-router.post("/auth/google", googleOauth);
+router.post("/github", githubOauth);
+router.post("/google", googleOauth);
 
 router.get("/check-username", checkUsername);
 router.get("/check-email", checkEmail);

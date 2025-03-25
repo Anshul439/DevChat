@@ -9,6 +9,7 @@ const VerifyPage = () => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
   const email = useAuthStore((state) => state.email);
 
@@ -35,7 +36,7 @@ const VerifyPage = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/verifyCode", {
+      const response = await fetch(`${rootUrl}/email/verifyCode`, {
         method: "POST",
         body: JSON.stringify({ email, otpValue }),
         headers: {

@@ -33,6 +33,8 @@ export default function Signin() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
+
   const setEmail = useAuthStore((state) => state.setEmail);
 
   const form = useForm<z.infer<typeof SignInSchema>>({
@@ -48,7 +50,7 @@ export default function Signin() {
     setAuthError(""); // Clear previous errors
     try {
       const response = await axios.post<ApiResponse>(
-        "http://localhost:8000/api/signin",
+        `${rootUrl}/auth/signin`,
         data,
         { withCredentials: true }
       );

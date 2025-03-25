@@ -14,6 +14,7 @@ const LoadingPage = () => {
   console.log(code);
 
   const { setEmail, setToken } = useAuthStore();
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
   useEffect(() => {
     if (code && state) {
@@ -23,7 +24,7 @@ const LoadingPage = () => {
 
   const exchangeCodeForToken = async (code: string, state: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/auth/${state}`, {
+      const response = await fetch(`${rootUrl}/auth/${state}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

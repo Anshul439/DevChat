@@ -43,6 +43,8 @@ export default function Signup() {
 
   const setEmail = useAuthStore((state) => state.setEmail);
 
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
+
   const debouncedUsername = useDebounceCallback(setUsername, 500);
   const debouncedEmail = useDebounceCallback(setEmaill, 500);
   const { toast } = useToast();
@@ -64,12 +66,9 @@ export default function Signup() {
         setIsCheckingUsername(true);
         setUsernameMessage("");
         try {
-          const response = await axios.get(
-            `http://localhost:8000/api/check-username`,
-            {
-              params: { username: username },
-            }
-          );
+          const response = await axios.get(`${rootUrl}/auth/check-username`, {
+            params: { username: username },
+          });
 
           const message = response.data.message;
           setUsernameMessage(message);
@@ -93,12 +92,9 @@ export default function Signup() {
         setIsCheckingEmail(true);
         setEmailMessage("");
         try {
-          const response = await axios.get(
-            `http://localhost:8000/api/check-email`,
-            {
-              params: { email: email },
-            }
-          );
+          const response = await axios.get(`${rootUrl}/auth/check-email`, {
+            params: { email: email },
+          });
           const message = response.data.message;
           setEmailMessage(message);
         } catch (error) {
@@ -118,7 +114,7 @@ export default function Signup() {
     setIsSubmitting(true);
     try {
       const response = await axios.post<ApiResponse>(
-        "http://localhost:8000/api/signup",
+        `${rootUrl}/auth/signup`,
         data,
         { withCredentials: true }
       );

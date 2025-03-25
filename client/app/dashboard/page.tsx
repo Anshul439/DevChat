@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
   // Initialize socket connection
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await axios.get<User[]>("http://localhost:8000/api/users", {
+        const res = await axios.get<User[]>(`${rootUrl}/user`, {
           withCredentials: true,
         });
 

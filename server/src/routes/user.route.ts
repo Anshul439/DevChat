@@ -4,6 +4,6 @@ import express from "express";
 
 const router = express.Router();
 
-router.get("/users", authenticateToken, getUsers);
+router.get("/", authenticateToken, getUsers);
 
 export default router;

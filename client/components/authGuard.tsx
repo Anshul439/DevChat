@@ -9,10 +9,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const { setToken, setEmail } = useAuthStore();
 
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        await axios.get("http://localhost:8000/api/validate-token", {
+        await axios.get(`${rootUrl}/auth/validate-token`, {
           withCredentials: true,
         });
         setIsLoading(false); // User is authenticated

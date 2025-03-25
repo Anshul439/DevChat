@@ -188,18 +188,6 @@ export const githubOauth = async (
         email.primary && email.verified
     )?.email;
 
-    // Create JWT token
-    const token = jwt.sign(
-      {
-        id: userData.id,
-        email: primaryEmail || null, // Use the fetched primary email, or null if not available
-        fullName: userData.name,
-        username: userData.login,
-      },
-      JWT_SECRET,
-      // { expiresIn: "1h" }
-    );
-
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [{ email: primaryEmail }, { username: userData.login }],
@@ -223,6 +211,18 @@ export const githubOauth = async (
         data: { isVerified: true },
       });
     }
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        id: existingUser.id,
+        email: existingUser.email || null, // Use the fetched primary email, or null if not available
+        fullName: existingUser.fullName,
+        username: existingUser.username,
+      },
+      JWT_SECRET,
+      // { expiresIn: "1h" }
+    );
 
     res.cookie("authToken", token, { httpOnly: true }).json({
       success: true,

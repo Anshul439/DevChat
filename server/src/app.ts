@@ -75,6 +75,6 @@ io.on("connection", (socket) => {
 
 app.use(cookieParser());
 
-app.use("/api", authRoutes);
-app.use("/api", emailRoutes);
-app.use("/api", userRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/email", emailRoutes);
+app.use("/api/user", userRoutes);

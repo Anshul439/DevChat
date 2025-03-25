@@ -11,15 +11,15 @@ const Navbar = () => {
   const router = useRouter();
   const { email, setToken, setEmail } = useAuthStore(); // Get email and logout functions
   console.log(email);
+  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
   // Handle logout
-  const handleLogout = async() => {
-    const response = await axios.post<ApiResponse>(
-      "http://localhost:8000/api/logout",
-      { withCredentials: true }
-    );
+  const handleLogout = async () => {
+    const response = await axios.post<ApiResponse>(`${rootUrl}/auth/logout`, {
+      withCredentials: true,
+    });
     console.log(response);
-    
+
     setToken(""); // Clear the token
     setEmail(""); // Clear the email
     router.push("/sign-in"); // Redirect to the sign-in page
