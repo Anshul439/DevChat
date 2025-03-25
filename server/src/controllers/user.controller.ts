@@ -9,11 +9,17 @@ export const getUsers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const currentUserId = (req as any).user?.id; // Ensure your auth middleware sets this
+    console.log(currentUserId, "HIIIIIIIIIIIII");
+    
+
     const users = await prisma.user.findMany({
+      where: {
+        id: { not: currentUserId }, // Exclude the logged-in user
+      },
       select: { id: true, username: true, email: true },
     });
-    // console.log(users);
-    
+
     res.status(200).json(users);
   } catch (error) {
     console.error("Error fetching users:", error);

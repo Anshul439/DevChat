@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { MessageCircle, Users, Lock } from "lucide-react";
 import useAuthStore from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -11,53 +11,100 @@ interface User {
   id: number;
   username: string;
   email: string;
+  hasNewMessages?: boolean; // Add this to track new messages
+}
+
+interface Message {
+  id: number;
+  text: string;
+  isUser: boolean;
+  sender: string;
+  receiver: string;
 }
 
 let socket: Socket | null = null; // Global socket reference
 
 export default function DashboardPage() {
-  const [message, setMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const { email } = useAuthStore();
+  const [users, setUsers] = useState<User[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
+  // Initialize socket connection
   useEffect(() => {
     if (!socket) {
-      socket = io("http://localhost:8000");
-      // socket = useMemo(() => {
-      //   io("http://localhost:8000");
-      // }, []);
+      socket = io("http://localhost:8000", {
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+      });
 
       socket.on("connect", () => {
         console.log("connected", socket?.id);
       });
-
-      socket.on("receive-message", (data) => {
-        console.log("Received:", data);
-        const isUser = data.sender === email;
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { id: prevMessages.length + 1, text: data.text, isUser: isUser },
-        ]);
-      });
-
-      // socket.on("disconnect", () => {
-      //   console.log("User disconnected", socket?.id);
-      // });
     }
 
     return () => {
       socket?.disconnect();
-      socket = null; // Reset on unmount
+      socket = null;
     };
-  }, [email]);
+  }, []);
 
+  // Set up message listener that depends on the selected user
+  useEffect(() => {
+    // Remove previous listener to prevent duplicates
+    socket?.off("receive-message");
 
+    // Set up new listener
+    socket?.on("receive-message", (data) => {
+      console.log("Received message:", data);
+      const isUser = data.sender === email;
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [messages, setMessages] = useState<
-    { id: number; text: string; isUser: boolean }[]
-  >([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null); // State for selected user
+      if (selectedUser) {
+        // If message is relevant to current chat, add it to messages
+        if (
+          data.sender === selectedUser.email ||
+          data.receiver === selectedUser.email
+        ) {
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            {
+              id: prevMessages.length + 1,
+              text: data.text,
+              isUser: isUser,
+              sender: data.sender,
+              receiver: data.receiver,
+            },
+          ]);
+        }
+        // If message is from someone else, mark that user as having new messages
+        else {
+          setUsers((prevUsers) =>
+            prevUsers.map((user) =>
+              user.email === data.sender
+                ? { ...user, hasNewMessages: true }
+                : user
+            )
+          );
+        }
+      } else {
+        // No selected user, mark sender as having new messages
+        setUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.email === data.sender
+              ? { ...user, hasNewMessages: true }
+              : user
+          )
+        );
+      }
+    });
+
+    return () => {
+      socket?.off("receive-message");
+    };
+  }, [email, selectedUser]);
 
   // Fetch users from the backend
   useEffect(() => {
@@ -68,54 +115,69 @@ export default function DashboardPage() {
         });
 
         // Exclude the logged-in user from the list
-        const filteredUsers = res.data.filter((user) => user.email !== email);
+        const filteredUsers = res.data
+          .filter((user) => user.email !== email)
+          .map((user) => ({ ...user, hasNewMessages: false }));
 
-        setUsers(filteredUsers);
+        setUsers(res.data);
       } catch (error) {
         console.error("Error fetching users:", error);
       }
     };
 
     fetchUsers();
-  }, [email]); // Re-run when email changes
+  }, [email]);
 
-
-  const handleUserSelect = (user) => {
+  const handleUserSelect = (user: User) => {
     setSelectedUser(user);
-    
+
+    // Clear the new message indicator for this user
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u.id === user.id ? { ...u, hasNewMessages: false } : u
+      )
+    );
+
     // Clear previous messages when switching users
     setMessages([]);
-    
+
     // Join the private room for these two users
     socket?.emit("join-room", {
       sender: email,
-      receiver: user.email
+      receiver: user.email,
     });
   };
-
 
   // Function to handle sending a new message
   const handleSendMessage = () => {
     if (newMessage.trim() && selectedUser) {
+      const messageData = {
+        text: newMessage.trim(),
+        sender: email,
+        receiver: selectedUser.email,
+      };
+
       const message = {
         id: messages.length + 1,
         text: newMessage.trim(),
         isUser: true,
+        sender: email,
+        receiver: selectedUser.email,
       };
+
       setMessages([...messages, message]);
 
       // Emit message to socket server
-      socket?.emit("message", { text: newMessage, sender: email, receiver: selectedUser.email  });
+      socket?.emit("message", messageData);
 
       setNewMessage("");
     }
   };
 
-  // const handleSubmit = (e) => {
-  //   e.preventDefault();
-  //   socket?.emit("message", { text: newMessage, sender: email }); // Send structured data
-  //   setMessage(""); // Clear input field after sending
-  // };
+  // Filter users based on search query
+  const filteredUsers = users.filter((user) =>
+    user.username.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 text-black dark:text-white">
@@ -147,28 +209,37 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <input
               type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search chats..."
               className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
             />
             <div className="space-y-2">
-              {users.length > 0 ? (
-                users.map((user) => (
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    onClick={() => handleUserSelect(user)} // Set selected user on click
+                    onClick={() => handleUserSelect(user)}
                     className={`p-2 rounded-md cursor-pointer ${
                       selectedUser?.id === user.id
                         ? "bg-gray-300 dark:bg-gray-700"
                         : "hover:bg-gray-100 dark:hover:bg-gray-800"
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                    <div className="flex items-center space-x-3 relative">
+                      <div className="h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full">
+                        {user.hasNewMessages && (
+                          <div className="absolute top-0 right-0 h-3 w-3 bg-orange-500 rounded-full"></div>
+                        )}
+                      </div>
                       <div>
-                        <h3 className="text-gray-700 dark:text-gray-300">
+                        <h3 className="text-gray-700 dark:text-gray-300 flex items-center">
                           {user.username}
+                          {user.hasNewMessages && (
+                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-orange-500 text-white rounded-full">
+                              New
+                            </span>
+                          )}
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           Click to chat with {user.username}
@@ -196,29 +267,29 @@ export default function DashboardPage() {
               </div>
 
               {/* Chat Messages */}
-              <div className="flex-grow overflow-y-auto mt-4">
-              {messages.map((message) => (
-  <div
-    key={message.id}
-    className={`flex ${
-      message.isUser ? "justify-end" : "justify-start"
-    } mb-4`}
-  >
-    <div
-      className={`p-3 rounded-lg max-w-xs ${
-        message.isUser
-          ? "bg-orange-600 text-white"
-          : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-      }`}
-    >
-      <p>{message.text}</p>
-    </div>
-  </div>
-))}
+              <div className="flex-grow overflow-y-auto mt-4 mb-4 p-2">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.isUser ? "justify-end" : "justify-start"
+                    } mb-4`}
+                  >
+                    <div
+                      className={`p-3 rounded-lg max-w-xs ${
+                        message.isUser
+                          ? "bg-orange-600 text-white"
+                          : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      <p>{message.text}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Message Input */}
-              <div className="mt-4 flex space-x-2">
+              <div className="mt-auto flex space-x-2">
                 <input
                   type="text"
                   placeholder="Type a message..."

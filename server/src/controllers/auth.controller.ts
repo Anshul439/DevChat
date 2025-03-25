@@ -57,7 +57,7 @@ export const signup = async (
 
     await prisma.userVerification.create({
       data: {
-        userId: user.id,
+        id: user.id,
         verifyCode,
         verifyCodeExpiry,
       },
@@ -65,8 +65,8 @@ export const signup = async (
 
     await sendVerificationEmail(email, username, verifyCode);
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "1h",
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+      // expiresIn: "1h",
     });
     // console.log(token);
 
@@ -119,8 +119,8 @@ export const signin = async (
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "1h",
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+      // expiresIn: "1h",
     });
 
     res
@@ -197,7 +197,7 @@ export const githubOauth = async (
         username: userData.login,
       },
       JWT_SECRET,
-      { expiresIn: "24h" }
+      // { expiresIn: "1h" }
     );
 
     const existingUser = await prisma.user.findFirst({
@@ -303,7 +303,7 @@ export const googleOauth = async (
 
     // Generate a JWT token for the authenticated user
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "1h",
+      // expiresIn: "1h",
     });
 
     res.cookie("authToken", token, { httpOnly: true }).json({
