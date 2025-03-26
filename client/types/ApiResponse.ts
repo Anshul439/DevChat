@@ -1,7 +1,7 @@
-export interface ApiResponse{
-    success: boolean;
-    message: string;
-    isAcceptingMessages: boolean;
-    email: string;
-    token: string;
-}
+export interface ApiMessage {
+    id: number;
+    text: string;
+    sender: string;
+    receiver: string;
+    createdAt: string;
+  }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
+import { ApiMessage } from "@/types/ApiResponse";
 
 interface User {
   id: number;
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [newMessage, setNewMessage] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Initialize socket connection
   useEffect(() => {
@@ -129,6 +131,41 @@ export default function DashboardPage() {
     fetchUsers();
   }, [email]);
 
+  useEffect(() => {
+    if (selectedUser && email) {
+      const fetchMessages = async () => {
+        setLoadingMessages(true);
+        try {
+          const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
+            params: {
+              user1: email,
+              user2: selectedUser.email,
+            },
+            withCredentials: true,
+          });
+
+          // Convert API messages to your frontend format
+          const formattedMessages = res.data.map((msg) => ({
+            id: msg.id,
+            text: msg.text,
+            isUser: msg.sender === email,
+            sender: msg.sender,
+            receiver: msg.receiver,
+            createdAt: msg.createdAt,
+          }));
+
+          setMessages(formattedMessages);
+        } catch (error) {
+          console.error("Error fetching messages:", error);
+        } finally {
+          setLoadingMessages(false);
+        }
+      };
+
+      fetchMessages();
+    }
+  }, [selectedUser, email, rootUrl]);
+
   const handleUserSelect = (user: User) => {
     setSelectedUser(user);
 
@@ -150,28 +187,56 @@ export default function DashboardPage() {
   };
 
   // Function to handle sending a new message
-  const handleSendMessage = () => {
-    if (newMessage.trim() && selectedUser) {
-      const messageData = {
-        text: newMessage.trim(),
-        sender: email,
-        receiver: selectedUser.email,
-      };
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser || !email) return;
 
-      const message = {
-        id: messages.length + 1,
+    const tempId = Date.now(); // Temporary ID for optimistic update
+    const messageData = {
+      text: newMessage.trim(),
+      sender: email,
+      receiver: selectedUser.email,
+    };
+
+    // Optimistic UI update
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
         text: newMessage.trim(),
         isUser: true,
         sender: email,
         receiver: selectedUser.email,
-      };
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
-      setMessages([...messages, message]);
+    try {
+      // Send to backend
+      const response = await axios.post(`${rootUrl}/message`, messageData, {
+        withCredentials: true,
+      });
 
-      // Emit message to socket server
-      socket?.emit("message", messageData);
+      // Update with real ID from server
+      if (response.data.id) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId ? { ...msg, id: response.data.id } : msg
+          )
+        );
+      }
+
+      // Emit via socket
+      socket?.emit("message", {
+        ...messageData,
+        id: response.data.id, // Include server-generated ID
+        createdAt: response.data.createdAt,
+      });
 
       setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+      // Rollback optimistic update
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
 
