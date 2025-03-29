@@ -10,18 +10,50 @@ export const storeMessage = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { text, sender, receiver } = req.body;
+    const { text, senderEmail, receiverEmail } = req.body;
 
-    if (!text || !sender || !receiver) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!text || !senderEmail || !receiverEmail) {
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
     }
 
-    const message = await prisma.message.create({
+    // Find sender and receiver by email
+    const sender = await prisma.user.findUnique({
+      where: { email: senderEmail }
+    });
+
+    const receiver = await prisma.user.findUnique({
+      where: { email: receiverEmail }
+    });
+
+    if (!sender || !receiver) {
+      res.status(404).json({ error: 'Sender or receiver not found' });
+      return;
+    }
+
+    // Create message using user IDs
+    const message = await prisma.message.create({ 
       data: {
         text,
-        sender,
-        receiver,
+        senderId: sender.id,
+        receiverId: receiver.id,
       },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+          }
+        },
+        receiver: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+          }
+        }
+      }
     });
 
     res.status(201).json(message);
@@ -38,22 +70,54 @@ export const getMessages = async (
     next: NextFunction
   ): Promise<void> => {
   try {
-    const { user1, user2 } = req.query;
+    const { user1Email, user2Email } = req.query;
 
-    if (!user1 || !user2) {
-      return res.status(400).json({ error: 'Both user emails are required' });
+    if (!user1Email || !user2Email) {
+      res.status(400).json({ error: 'Both user emails are required' });
+      return;
     }
 
+    // Find users by email
+    const user1 = await prisma.user.findUnique({
+      where: { email: user1Email as string }
+    });
+
+    const user2 = await prisma.user.findUnique({
+      where: { email: user2Email as string }
+    });
+
+    if (!user1 || !user2) {
+      res.status(404).json({ error: 'One or both users not found' });
+      return;
+    }
+
+    // Get messages using user IDs
     const messages = await prisma.message.findMany({
       where: {
         OR: [
-          { sender: user1 as string, receiver: user2 as string },
-          { sender: user2 as string, receiver: user1 as string },
+          { senderId: user1.id, receiverId: user2.id },
+          { senderId: user2.id, receiverId: user1.id },
         ],
       },
       orderBy: {
         createdAt: 'asc',
       },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+          }
+        },
+        receiver: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+          }
+        }
+      }
     });
 
     res.json(messages);

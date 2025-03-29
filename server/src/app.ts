@@ -47,6 +47,8 @@ io.on("connection", (socket) => {
 
   socket.on("join-room", (data) => {
     const { sender, receiver } = data;
+    console.log(data);
+    
     const users = [sender, receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
 
