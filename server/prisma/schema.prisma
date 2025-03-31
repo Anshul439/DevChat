@@ -20,6 +20,10 @@ model User {
   verification     UserVerification? @relation
   sentMessages     Message[]         @relation("SentMessages")
   receivedMessages Message[]         @relation("ReceivedMessages")
+
+  createdGroups     Group[]        @relation("CreatedGroups")
+  groupMemberships  GroupMember[]
+  sentGroupMessages GroupMessage[]
 }
 
 model UserVerification {
@@ -48,4 +52,41 @@ model Message {
   @@index([senderId])
   @@index([receiverId])
   @@index([senderId, receiverId])
+}
+
+model Group {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  creatorId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator  User           @relation("CreatedGroups", fields: [creatorId], references: [id])
+  members  GroupMember[]
+  messages GroupMessage[]
+}
+
+model GroupMember {
+  id       Int      @id @default(autoincrement())
+  groupId  Int
+  userId   Int
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+}
+
+model GroupMessage {
+  id        Int      @id @default(autoincrement())
+  text      String
+  groupId   Int
+  senderId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group  Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id])
 }

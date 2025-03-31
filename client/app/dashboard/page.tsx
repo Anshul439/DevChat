@@ -71,6 +71,31 @@ interface Message {
   };
 }
 
+interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  creatorId: number;
+  createdAt: string;
+  updatedAt: string;
+  hasNewMessages?: boolean;
+  lastMessage?: string;
+  members: GroupMember[];
+}
+
+interface GroupMember {
+  id: number;
+  user: User;
+}
+
+interface GroupMessage {
+  id: number;
+  text: string;
+  groupId: number;
+  sender: User;
+  createdAt: string;
+}
+
 // Utility Functions
 const getInitials = (name: string) => {
   return name
@@ -95,8 +120,13 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { email, setToken, setEmail } = useAuthStore();
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>([]);
+  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>(
+    []
+  );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
 
   const router = useRouter();
 
@@ -167,6 +197,32 @@ export default function ChatPage() {
     };
   }, [email, selectedUser]);
 
+  useEffect(() => {
+    socket?.off("receive-group-message");
+
+    socket?.on("receive-group-message", (message: GroupMessage) => {
+      if (selectedGroup && message.groupId === selectedGroup.id) {
+        setGroupMessages((prev) => [...prev, message]);
+      } else {
+        setGroups((prev) =>
+          prev.map((group) =>
+            group.id === message.groupId
+              ? {
+                  ...group,
+                  hasNewMessages: true,
+                  lastMessage: message.text,
+                }
+              : group
+          )
+        );
+      }
+    });
+
+    return () => {
+      socket?.off("receive-group-message");
+    };
+  }, [selectedGroup]);
+
   // Fetch Users
   useEffect(() => {
     const fetchUsers = async () => {
@@ -184,51 +240,66 @@ export default function ChatPage() {
   }, [email, rootUrl]);
 
   // Fetch Messages
-useEffect(() => {
-  if (selectedUser && email) {
-    const fetchMessages = async () => {
-      setLoadingMessages(true);
+  useEffect(() => {
+    if (selectedUser && email) {
+      const fetchMessages = async () => {
+        setLoadingMessages(true);
+        try {
+          const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
+            params: {
+              user1Email: email,
+              user2Email: selectedUser.email,
+            },
+            withCredentials: true,
+          });
+
+          const formattedMessages = res.data.map((msg) => ({
+            id: msg.id,
+            text: msg.text,
+            isUser: msg.sender.email === email,
+            sender: msg.sender.email,
+            receiver: msg.receiver.email,
+            createdAt: msg.createdAt,
+            senderObject: msg.sender,
+            receiverObject: msg.receiver,
+          }));
+
+          setMessages(formattedMessages);
+        } catch (error) {
+          console.error("Error fetching messages:", error);
+        } finally {
+          setLoadingMessages(false);
+        }
+      };
+
+      fetchMessages();
+    }
+  }, [selectedUser, email, rootUrl]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, selectedUser]);
+
+  useEffect(() => {
+    const fetchGroups = async () => {
       try {
-        const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
-          params: {
-            user1Email: email,
-            user2Email: selectedUser.email,
-          },
+        const res = await axios.get<Group[]>(`${rootUrl}/group`, {
           withCredentials: true,
         });
-
-        const formattedMessages = res.data.map((msg) => ({
-          id: msg.id,
-          text: msg.text,
-          isUser: msg.sender.email === email,
-          sender: msg.sender.email,
-          receiver: msg.receiver.email,
-          createdAt: msg.createdAt,
-          senderObject: msg.sender,
-          receiverObject: msg.receiver,
-        }));
-
-        setMessages(formattedMessages);
+        setGroups(res.data);
       } catch (error) {
-        console.error("Error fetching messages:", error);
-      } finally {
-        setLoadingMessages(false);
+        console.error("Error fetching groups:", error);
       }
     };
 
-    fetchMessages();
-  }
-}, [selectedUser, email, rootUrl]);
-  
-useEffect(() => {
-  scrollToBottom();
-}, [messages, selectedUser]);
+    fetchGroups();
+  }, [rootUrl]);
 
-const scrollToBottom = () => {
-  if (messagesEndRef.current) {
-    messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-  }
-};
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const handleUserSelect = (user: User) => {
     setSelectedUser(user);
@@ -247,14 +318,14 @@ const scrollToBottom = () => {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !email) return;
-  
+
     const tempId = Date.now();
     const messageData = {
       text: newMessage.trim(),
       senderEmail: email, // Change from 'sender' to 'senderEmail'
       receiverEmail: selectedUser.email, // Change from 'receiver' to 'receiverEmail'
     };
-  
+
     setMessages((prev) => [
       ...prev,
       {
@@ -266,12 +337,12 @@ const scrollToBottom = () => {
         createdAt: new Date().toISOString(),
       },
     ]);
-  
+
     try {
       const response = await axios.post(`${rootUrl}/message`, messageData, {
         withCredentials: true,
       });
-  
+
       if (response.data.id) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -279,7 +350,7 @@ const scrollToBottom = () => {
           )
         );
       }
-  
+
       socket?.emit("message", {
         text: newMessage.trim(),
         sender: email,
@@ -287,14 +358,13 @@ const scrollToBottom = () => {
         id: response.data.id,
         createdAt: response.data.createdAt,
       });
-  
+
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
-  
 
   // Group Creation Methods
   const handleCreateGroup = () => {
@@ -315,23 +385,110 @@ const scrollToBottom = () => {
     setSelectedUsersForGroup([]);
   };
 
-  const confirmGroupCreation = () => {
-    if (selectedUsersForGroup.length > 0) {
-      console.log("Creating group with:", selectedUsersForGroup);
-      // Add your group creation logic here
+  const confirmGroupCreation = async () => {
+    if (selectedUsersForGroup.length === 0) return;
+
+    try {
+      const memberIds = selectedUsersForGroup.map((user) => user.id);
+      const currentUser = users.find((user) => user.email === email);
+
+      if (currentUser) {
+        memberIds.push(currentUser.id);
+      }
+
+      const response = await axios.post(
+        `${rootUrl}/group`,
+        {
+          name: `Group with ${selectedUsersForGroup.length + 1} members`,
+          memberIds,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+      setGroups((prev) => [...prev, response.data]);
       setIsCreatingGroup(false);
       setSelectedUsersForGroup([]);
+
+      // Join the group room
+      socket?.emit("join-group-room", response.data.id);
+    } catch (error) {
+      console.error("Error creating group:", error);
+    }
+  };
+
+  const handleGroupSelect = (group: Group) => {
+    setSelectedGroup(group);
+    setSelectedUser(null);
+    setGroups((prev) =>
+      prev.map((g) => (g.id === group.id ? { ...g, hasNewMessages: false } : g))
+    );
+    fetchGroupMessages(group.id);
+    socket?.emit("join-group-room", group.id);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const fetchGroupMessages = async (groupId: number) => {
+    try {
+      const res = await axios.get<GroupMessage[]>(
+        `${rootUrl}/group/${groupId}/messages`,
+        {
+          withCredentials: true,
+        }
+      );
+      setGroupMessages(res.data);
+    } catch (error) {
+      console.error("Error fetching group messages:", error);
+    }
+  };
+
+  const sendGroupMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup || !email) return;
+
+    const tempId = Date.now();
+    const messageData = {
+      text: newMessage.trim(),
+      groupId: selectedGroup.id,
+      senderEmail: email,
+    };
+
+    setGroupMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        text: newMessage.trim(),
+        groupId: selectedGroup.id,
+        sender: {
+          id: tempId,
+          email,
+          username: users.find((u) => u.email === email)?.username || "",
+        },
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    try {
+      socket?.emit("group-message", messageData);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending group message:", error);
+      setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
 
   const handleLogout = async () => {
     try {
-      await axios.post(`${rootUrl}/auth/logout`, {}, {
-        withCredentials: true,
-      });
+      await axios.post(
+        `${rootUrl}/auth/logout`,
+        {},
+        {
+          withCredentials: true,
+        }
+      );
 
-      setToken(""); 
-      setEmail(""); 
+      setToken("");
+      setEmail("");
       router.push("/sign-in");
     } catch (error) {
       console.error("Logout error:", error);
@@ -348,7 +505,7 @@ const scrollToBottom = () => {
       {/* Mobile Header (Hidden on larger screens) */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 shadow-sm">
         <div className="flex justify-between items-center p-4">
-          <button 
+          <button
             onClick={() => setIsMobileSidebarOpen(true)}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
           >
@@ -402,16 +559,18 @@ const scrollToBottom = () => {
       </div>
 
       {/* Contacts List */}
-      <div className={`
+      <div
+        className={`
         fixed inset-y-0 left-0 z-50 w-72 md:w-96 transform 
-        ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
         lg:relative lg:translate-x-0 
         border-r border-gray-200 dark:border-gray-700 
         bg-white dark:bg-gray-800 flex flex-col
         transition-transform duration-300 ease-in-out
-      `}>
+      `}
+      >
         {/* Mobile Close Button */}
-        <button 
+        <button
           onClick={() => setIsMobileSidebarOpen(false)}
           className="lg:hidden absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
         >
@@ -466,11 +625,55 @@ const scrollToBottom = () => {
 
         {/* Users List */}
         <div className="flex-1 overflow-y-auto">
+          {/* Groups Section */}
+          <div className="px-4 py-2">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              Groups
+            </h3>
+          </div>
+          {groups.map((group) => (
+            <div
+              key={group.id}
+              onClick={() => handleGroupSelect(group)}
+              className={`flex items-center p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer ${
+                selectedGroup?.id === group.id
+                  ? "bg-orange-100 dark:bg-gray-700"
+                  : "hover:bg-gray-50 dark:hover:bg-gray-700"
+              }`}
+            >
+              <div className="relative mr-3">
+                <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-gray-600 flex items-center justify-center">
+                  <span className="text-orange-600 dark:text-gray-300 font-medium">
+                    {getInitials(group.name)}
+                  </span>
+                </div>
+                {group.hasNewMessages && (
+                  <div className="absolute top-0 right-0 h-3 w-3 bg-orange-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium truncate">{group.name}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  {group.lastMessage || `${group.members.length} members`}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {/* Users Section */}
+          <div className="px-4 py-2">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              Contacts
+            </h3>
+          </div>
           {filteredUsers.length > 0 ? (
             filteredUsers.map((user) => (
               <div
                 key={user.id}
-                onClick={() => handleUserSelect(user)}
+                onClick={() => {
+                  handleUserSelect(user);
+                  setSelectedGroup(null);
+                }}
                 className={`flex items-center p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer ${
                   selectedUser?.id === user.id
                     ? "bg-orange-100 dark:bg-gray-700"
@@ -516,11 +719,11 @@ const scrollToBottom = () => {
         {isCreatingGroup && (
           <div className="absolute inset-0 z-20 bg-white dark:bg-gray-800 flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <button 
-                onClick={cancelGroupCreation} 
+              <button
+                onClick={cancelGroupCreation}
                 className="text-orange-500 flex items-center"
               >
-                <X className="h-6 w-6 mr-2" /> 
+                <X className="h-6 w-6 mr-2" />
                 <span>Cancel</span>
               </button>
               <h2 className="font-semibold text-lg">New Group</h2>
@@ -608,7 +811,85 @@ const scrollToBottom = () => {
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900 mt-16 lg:mt-0">
-        {selectedUser ? (
+        {selectedGroup ? (
+          <>
+            {/* Group Chat Header */}
+            <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center">
+              <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-gray-600 flex items-center justify-center mr-3">
+                <span className="text-orange-600 dark:text-gray-300 font-medium">
+                  {getInitials(selectedGroup.name)}
+                </span>
+              </div>
+              <div className="flex-1">
+                <h2 className="font-medium">{selectedGroup.name}</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectedGroup.members.length} members
+                </p>
+              </div>
+            </div>
+
+            {/* Group Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {groupMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.sender.email === email
+                      ? "justify-end"
+                      : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-xs md:max-w-md rounded-lg p-3 ${
+                      message.sender.email === email
+                        ? "bg-orange-500 text-white rounded-tr-none"
+                        : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
+                    }`}
+                  >
+                    {message.sender.email !== email && (
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-300 mb-1">
+                        {message.sender.username}
+                      </p>
+                    )}
+                    <p>{message.text}</p>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Group Message Input */}
+            <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      sendGroupMessage();
+                    }
+                  }}
+                  placeholder="Type a message"
+                  className="flex-1 mr-2 py-2 px-4 bg-gray-100 dark:bg-gray-700 rounded-full text-sm focus:outline-none"
+                />
+                <Button
+                  onClick={sendGroupMessage}
+                  className="bg-orange-500 hover:bg-orange-600 text-white rounded-full p-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-5 w-5"
+                  >
+                    <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : selectedUser ? (
           <>
             {/* Chat Header */}
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center">
@@ -633,39 +914,39 @@ const scrollToBottom = () => {
             </div>
 
             {/* Messages Area */}
-{/* Messages Area */}
-<div className="flex-1 overflow-y-auto p-4 space-y-3">
-  {loadingMessages ? (
-    <div className="flex justify-center items-center h-full">
-      <div className="text-gray-500 dark:text-gray-400">
-        Loading messages...
-      </div>
-    </div>
-  ) : (
-    <>
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`flex ${
-            message.isUser ? "justify-end" : "justify-start"
-          }`}
-        >
-          <div
-            className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-              message.isUser
-                ? "bg-orange-500 text-white rounded-tr-none"
-                : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
-            }`}
-          >
-            <p>{message.text}</p>
-          </div>
-        </div>
-      ))}
-      {/* This empty div will be scrolled into view */}
-      <div ref={messagesEndRef} />
-    </>
-  )}
-</div>
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {loadingMessages ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Loading messages...
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${
+                        message.isUser ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-xs md:max-w-md rounded-lg p-3 ${
+                          message.isUser
+                            ? "bg-orange-500 text-white rounded-tr-none"
+                            : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
+                        }`}
+                      >
+                        <p>{message.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {/* This empty div will be scrolled into view */}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
 
             {/* Message Input */}
             <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">

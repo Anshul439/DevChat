@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.route.js";
 import emailRoutes from "./routes/email.route.js";
 import userRoutes from "./routes/user.route.js";
 import messageRoutes from "./routes/message.route.js";
+import groupRoutes from "./routes/group.route.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
@@ -48,7 +49,7 @@ io.on("connection", (socket) => {
   socket.on("join-room", (data) => {
     const { sender, receiver } = data;
     console.log(data);
-    
+
     const users = [sender, receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
 
@@ -56,7 +57,7 @@ io.on("connection", (socket) => {
     socket.join(roomName);
   });
 
-  socket.on('message', async (data) => {
+  socket.on("message", async (data) => {
     // Only store if explicitly requested
     if (data.store) {
       const message = await prisma.message.create({
@@ -69,11 +70,68 @@ io.on("connection", (socket) => {
       data.id = message.id;
       data.createdAt = message.createdAt;
     }
-    
+
     // Broadcast to room
     const users = [data.sender, data.receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
-    socket.broadcast.to(roomName).emit('receive-message', data);
+    socket.broadcast.to(roomName).emit("receive-message", data);
+  });
+
+  socket.on("join-group-room", (groupId) => {
+    console.log(`User joining group room: group_${groupId}`);
+    socket.join(`group_${groupId}`);
+  });
+
+  socket.on("group-message", async (data) => {
+    try {
+      const { text, groupId, senderEmail } = data;
+
+      // Find sender
+      const sender = await prisma.user.findUnique({
+        where: { email: senderEmail },
+      });
+
+      if (!sender) {
+        console.error("Sender not found");
+        return;
+      }
+
+      // Check if sender is a member of the group
+      const isMember = await prisma.groupMember.findFirst({
+        where: {
+          groupId: parseInt(groupId),
+          userId: sender.id,
+        },
+      });
+
+      if (!isMember) {
+        console.error("User not a member of this group");
+        return;
+      }
+
+      // Create message in database
+      const message = await prisma.groupMessage.create({
+        data: {
+          text,
+          groupId: parseInt(groupId),
+          senderId: sender.id,
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      // Broadcast to group room
+      io.to(`group_${groupId}`).emit("receive-group-message", message);
+    } catch (error) {
+      console.error("Error handling group message:", error);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -92,3 +150,4 @@ app.use("/api/auth", authRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/message", messageRoutes);
+app.use("/api/group", groupRoutes);
