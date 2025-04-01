@@ -82,6 +82,11 @@ io.on("connection", (socket) => {
     socket.join(`group_${groupId}`);
   });
 
+  socket.on("group-created", (groupData) => {
+    // Broadcast to all connected clients except the sender
+    socket.broadcast.emit("new-group-added", groupData);
+  });
+
   socket.on("group-message", async (data) => {
     try {
       const { text, groupId, senderEmail } = data;

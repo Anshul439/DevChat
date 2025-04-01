@@ -41,7 +41,7 @@ const LoadingPage = () => {
       setToken(data.token);
 
       if (data.success || data.token) {
-        router.push("/dashboard");
+        router.push("/chat");
       }
     } catch (error) {
       console.error("Authentication error:", error);

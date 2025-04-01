@@ -22,8 +22,7 @@ const Navbar = () => {
 
     setToken(""); // Clear the token
     setEmail(""); // Clear the email
-    router.push("/sign-in"); // Redirect to the sign-in page
-    console.log("hi");
+    router.push("/signin"); // Redirect to the sign-in page
   };
 
   return (
@@ -90,13 +89,13 @@ const Navbar = () => {
                 <Button
                   variant="outline"
                   className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white dark:border-orange-500 dark:text-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition duration-300"
-                  onClick={() => router.push("/sign-in")}
+                  onClick={() => router.push("/signin")}
                 >
                   Sign In
                 </Button>
                 <Button
                   className="bg-orange-600 dark:bg-orange-500 text-white hover:bg-orange-700 dark:hover:bg-orange-600 transition duration-300"
-                  onClick={() => router.push("/sign-up")}
+                  onClick={() => router.push("/signup")}
                 >
                   Get Started
                 </Button>

@@ -49,7 +49,7 @@ const VerifyPage = () => {
       console.log(data.message);
 
       if (data.message) {
-        router.replace("/dashboard");
+        router.replace("/chat");
       } else {
         alert("Invalid OTP. Please try again.");
       }

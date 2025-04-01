@@ -63,7 +63,7 @@ export default function Signin() {
         title: "Success",
         description: response.data.message,
       });
-      router.replace("/dashboard");
+      router.replace("/chat");
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       if (
@@ -210,7 +210,7 @@ export default function Signin() {
             <p className="text-gray-600 dark:text-gray-300">
               New to DevChat?{" "}
               <Link
-                href="/sign-up"
+                href="/signup"
                 className="text-orange-600 dark:text-orange-500 hover:text-orange-700 dark:hover:text-orange-600 font-medium"
               >
                 Create an account

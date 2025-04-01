@@ -127,6 +127,7 @@ export default function ChatPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
+  const [groupName, setGroupName] = useState("");
 
   const router = useRouter();
 
@@ -196,6 +197,26 @@ export default function ChatPage() {
       socket?.off("receive-message");
     };
   }, [email, selectedUser]);
+
+  // In your useEffect for socket connection or a separate one
+  useEffect(() => {
+    socket?.off("new-group-added");
+
+    socket?.on("new-group-added", (newGroup) => {
+      // Check if the current user is a member of this group
+      const userIsMember = newGroup.members.some(
+        (member) => member.user.email === email
+      );
+
+      if (userIsMember) {
+        setGroups((prev) => [...prev, newGroup]);
+      }
+    });
+
+    return () => {
+      socket?.off("new-group-added");
+    };
+  }, [email]);
 
   useEffect(() => {
     socket?.off("receive-group-message");
@@ -383,10 +404,11 @@ export default function ChatPage() {
   const cancelGroupCreation = () => {
     setIsCreatingGroup(false);
     setSelectedUsersForGroup([]);
+    setGroupName("");
   };
 
   const confirmGroupCreation = async () => {
-    if (selectedUsersForGroup.length === 0) return;
+    if (selectedUsersForGroup.length === 0 || !groupName.trim()) return;
 
     try {
       const memberIds = selectedUsersForGroup.map((user) => user.id);
@@ -399,7 +421,7 @@ export default function ChatPage() {
       const response = await axios.post(
         `${rootUrl}/group`,
         {
-          name: `Group with ${selectedUsersForGroup.length + 1} members`,
+          name: groupName.trim(), // Use the user-provided group name
           memberIds,
         },
         {
@@ -407,9 +429,12 @@ export default function ChatPage() {
         }
       );
 
+      socket?.emit("group-created", response.data);
+
       setGroups((prev) => [...prev, response.data]);
       setIsCreatingGroup(false);
       setSelectedUsersForGroup([]);
+      setGroupName(""); // Reset group name
 
       // Join the group room
       socket?.emit("join-group-room", response.data.id);
@@ -489,7 +514,7 @@ export default function ChatPage() {
 
       setToken("");
       setEmail("");
-      router.push("/sign-in");
+      router.push("/signin");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -730,14 +755,27 @@ export default function ChatPage() {
               <button
                 onClick={confirmGroupCreation}
                 className={`${
-                  selectedUsersForGroup.length > 0
+                  selectedUsersForGroup.length > 0 && groupName.trim()
                     ? "text-orange-500"
                     : "text-gray-400"
                 } font-medium`}
-                disabled={selectedUsersForGroup.length === 0}
+                disabled={
+                  selectedUsersForGroup.length === 0 || !groupName.trim()
+                }
               >
                 Create
               </button>
+            </div>
+
+            {/* Group Name Input */}
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <input
+                type="text"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder="Group name"
+                className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-md text-sm focus:outline-none"
+              />
             </div>
 
             {/* Selected members preview */}

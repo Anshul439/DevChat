@@ -8,7 +8,7 @@ const GoogleButton = () => {
     redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI!,
     response_type: "code",
     scope: "openid email profile",
-    prompt: "select_account",
+    // prompt: "select_account",
   }).toString();
 
   const handleGoogleLogin = () => {
