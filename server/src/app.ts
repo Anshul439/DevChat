@@ -58,7 +58,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("message", async (data) => {
-    // Only store if explicitly requested
     if (data.store) {
       const message = await prisma.message.create({
         data: {
@@ -68,10 +67,9 @@ io.on("connection", (socket) => {
         },
       });
       data.id = message.id;
-      data.createdAt = message.createdAt;
+      data.createdAt = message.createdAt.toString(); // Changed from toISOString()
     }
 
-    // Broadcast to room
     const users = [data.sender, data.receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
     socket.broadcast.to(roomName).emit("receive-message", data);
@@ -87,11 +85,11 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("new-group-added", groupData);
   });
 
+  // In your server code (backend)
   socket.on("group-message", async (data) => {
     try {
       const { text, groupId, senderEmail } = data;
 
-      // Find sender
       const sender = await prisma.user.findUnique({
         where: { email: senderEmail },
       });
@@ -101,20 +99,6 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Check if sender is a member of the group
-      const isMember = await prisma.groupMember.findFirst({
-        where: {
-          groupId: parseInt(groupId),
-          userId: sender.id,
-        },
-      });
-
-      if (!isMember) {
-        console.error("User not a member of this group");
-        return;
-      }
-
-      // Create message in database
       const message = await prisma.groupMessage.create({
         data: {
           text,
@@ -132,8 +116,10 @@ io.on("connection", (socket) => {
         },
       });
 
-      // Broadcast to group room
-      io.to(`group_${groupId}`).emit("receive-group-message", message);
+      socket.broadcast.to(`group_${groupId}`).emit("receive-group-message", {
+        ...message,
+        createdAt: message.createdAt.toString(), // Changed from toISOString()
+      });
     } catch (error) {
       console.error("Error handling group message:", error);
     }

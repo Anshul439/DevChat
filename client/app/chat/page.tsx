@@ -25,7 +25,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 
-// Type Definitions
+type ChatItem = {
+  id: number;
+  name: string;
+  type: "user" | "group";
+  lastMessage?: string;
+  lastMessageTime?: string;
+  hasNewMessages?: boolean;
+  avatar?: string;
+  members?: GroupMember[];
+  userObject?: User;
+  groupObject?: Group;
+};
+
 interface User {
   id: number;
   username: string;
@@ -128,8 +140,36 @@ export default function ChatPage() {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([]);
   const [groupName, setGroupName] = useState("");
+  const [combinedChats, setCombinedChats] = useState<ChatItem[]>([]);
 
   const router = useRouter();
+
+  const combineAndSortChats = (users: User[], groups: Group[]) => {
+    const userChats: ChatItem[] = users.map((user) => ({
+      id: user.id,
+      name: user.username,
+      type: "user",
+      lastMessage: user.lastMessage,
+      avatar: user.avatar,
+      userObject: user,
+    }));
+
+    const groupChats: ChatItem[] = groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      type: "group",
+      lastMessage: group.lastMessage,
+      members: group.members,
+      groupObject: group,
+    }));
+
+    // Just combine without sorting
+    return [...userChats, ...groupChats];
+  };
+
+  useEffect(() => {
+    setCombinedChats(combineAndSortChats(users, groups));
+  }, [users, groups]);
 
   // Socket Connection
   useEffect(() => {
@@ -173,23 +213,7 @@ export default function ChatPage() {
               receiver: data.receiver,
             },
           ]);
-        } else {
-          setUsers((prevUsers) =>
-            prevUsers.map((user) =>
-              user.email === data.sender
-                ? { ...user, hasNewMessages: true }
-                : user
-            )
-          );
         }
-      } else {
-        setUsers((prevUsers) =>
-          prevUsers.map((user) =>
-            user.email === data.sender
-              ? { ...user, hasNewMessages: true }
-              : user
-          )
-        );
       }
     });
 
@@ -224,18 +248,6 @@ export default function ChatPage() {
     socket?.on("receive-group-message", (message: GroupMessage) => {
       if (selectedGroup && message.groupId === selectedGroup.id) {
         setGroupMessages((prev) => [...prev, message]);
-      } else {
-        setGroups((prev) =>
-          prev.map((group) =>
-            group.id === message.groupId
-              ? {
-                  ...group,
-                  hasNewMessages: true,
-                  lastMessage: message.text,
-                }
-              : group
-          )
-        );
       }
     });
 
@@ -299,7 +311,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, selectedUser]);
+  }, [messages, selectedUser, groupMessages, selectedGroup]);
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -343,8 +355,8 @@ export default function ChatPage() {
     const tempId = Date.now();
     const messageData = {
       text: newMessage.trim(),
-      senderEmail: email, // Change from 'sender' to 'senderEmail'
-      receiverEmail: selectedUser.email, // Change from 'receiver' to 'receiverEmail'
+      senderEmail: email,
+      receiverEmail: selectedUser.email,
     };
 
     setMessages((prev) => [
@@ -355,7 +367,7 @@ export default function ChatPage() {
         isUser: true,
         sender: email,
         receiver: selectedUser.email,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toString(), // Changed from toISOString()
       },
     ]);
 
@@ -377,13 +389,47 @@ export default function ChatPage() {
         sender: email,
         receiver: selectedUser.email,
         id: response.data.id,
-        createdAt: response.data.createdAt,
+        createdAt: response.data.createdAt, // Keep as is (server will handle)
       });
 
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+    }
+  };
+
+  const sendGroupMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup || !email) return;
+
+    const tempId = Date.now();
+    const messageData = {
+      text: newMessage.trim(),
+      groupId: selectedGroup.id,
+      senderEmail: email,
+    };
+
+    setGroupMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        text: newMessage.trim(),
+        groupId: selectedGroup.id,
+        sender: {
+          id: tempId,
+          email,
+          username: users.find((u) => u.email === email)?.username || "",
+        },
+        createdAt: new Date().toString(), // Changed from toISOString()
+      },
+    ]);
+
+    try {
+      socket?.emit("group-message", messageData);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending group message:", error);
+      setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
 
@@ -468,40 +514,6 @@ export default function ChatPage() {
     }
   };
 
-  const sendGroupMessage = async () => {
-    if (!newMessage.trim() || !selectedGroup || !email) return;
-
-    const tempId = Date.now();
-    const messageData = {
-      text: newMessage.trim(),
-      groupId: selectedGroup.id,
-      senderEmail: email,
-    };
-
-    setGroupMessages((prev) => [
-      ...prev,
-      {
-        id: tempId,
-        text: newMessage.trim(),
-        groupId: selectedGroup.id,
-        sender: {
-          id: tempId,
-          email,
-          username: users.find((u) => u.email === email)?.username || "",
-        },
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-
-    try {
-      socket?.emit("group-message", messageData);
-      setNewMessage("");
-    } catch (error) {
-      console.error("Error sending group message:", error);
-      setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await axios.post(
@@ -521,8 +533,8 @@ export default function ChatPage() {
   };
 
   // Filtered Users for Search
-  const filteredUsers = users.filter((user) =>
-    user.username.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredChats = combinedChats.filter((chat) =>
+    chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -648,94 +660,71 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Users List */}
         <div className="flex-1 overflow-y-auto">
-          {/* Groups Section */}
-          <div className="px-4 py-2">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Groups
-            </h3>
-          </div>
-          {groups.map((group) => (
-            <div
-              key={group.id}
-              onClick={() => handleGroupSelect(group)}
-              className={`flex items-center p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer ${
-                selectedGroup?.id === group.id
-                  ? "bg-orange-100 dark:bg-gray-700"
-                  : "hover:bg-gray-50 dark:hover:bg-gray-700"
-              }`}
-            >
-              <div className="relative mr-3">
-                <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-gray-600 flex items-center justify-center">
-                  <span className="text-orange-600 dark:text-gray-300 font-medium">
-                    {getInitials(group.name)}
-                  </span>
-                </div>
-                {group.hasNewMessages && (
-                  <div className="absolute top-0 right-0 h-3 w-3 bg-orange-500 rounded-full border-2 border-white dark:border-gray-800"></div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">{group.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                  {group.lastMessage || `${group.members.length} members`}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          {/* Users Section */}
-          <div className="px-4 py-2">
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              Contacts
-            </h3>
-          </div>
-          {filteredUsers.length > 0 ? (
-            filteredUsers.map((user) => (
+          {filteredChats.length > 0 ? (
+            filteredChats.map((chat) => (
               <div
-                key={user.id}
+                key={`${chat.type}-${chat.id}`}
                 onClick={() => {
-                  handleUserSelect(user);
-                  setSelectedGroup(null);
+                  if (chat.type === "user" && chat.userObject) {
+                    handleUserSelect(chat.userObject);
+                    setSelectedGroup(null);
+                  } else if (chat.type === "group" && chat.groupObject) {
+                    handleGroupSelect(chat.groupObject);
+                  }
                 }}
                 className={`flex items-center p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer ${
-                  selectedUser?.id === user.id
+                  (selectedUser?.id === chat.id && chat.type === "user") ||
+                  (selectedGroup?.id === chat.id && chat.type === "group")
                     ? "bg-orange-100 dark:bg-gray-700"
                     : "hover:bg-gray-50 dark:hover:bg-gray-700"
                 }`}
               >
                 <div className="relative mr-3">
                   <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-gray-600 flex items-center justify-center">
-                    {user.avatar ? (
-                      <Image
-                        src={user.avatar}
-                        alt={user.username}
-                        width={40}
-                        height={40}
-                        className="rounded-full object-cover"
-                      />
+                    {chat.type === "user" ? (
+                      chat.avatar ? (
+                        <Image
+                          src={chat.avatar}
+                          alt={chat.name}
+                          width={40}
+                          height={40}
+                          className="rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-orange-600 dark:text-gray-300 font-medium">
+                          {getInitials(chat.name)}
+                        </span>
+                      )
                     ) : (
                       <span className="text-orange-600 dark:text-gray-300 font-medium">
-                        {getInitials(user.username)}
+                        {getInitials(chat.name)}
                       </span>
                     )}
                   </div>
-                  {user.hasNewMessages && (
-                    <div className="absolute top-0 right-0 h-3 w-3 bg-orange-500 rounded-full border-2 border-white dark:border-gray-800"></div>
-                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{user.username}</h3>
+                  <h3 className="font-medium truncate">{chat.name}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {user.lastMessage || `Start chatting with ${user.username}`}
+                    {chat.lastMessage ||
+                      (chat.type === "group"
+                        ? `${chat.members?.length || 0} members`
+                        : `Start chatting with ${chat.name}`)}
                   </p>
                 </div>
+                {chat.lastMessageTime && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 ml-2 whitespace-nowrap">
+                    {new Date(chat.lastMessageTime).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                )}
               </div>
             ))
           ) : (
             <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              No contacts found
+              No chats found
             </div>
           )}
         </div>
@@ -951,7 +940,6 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Messages Area */}
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {loadingMessages ? (
