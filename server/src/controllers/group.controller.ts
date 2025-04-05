@@ -132,6 +132,9 @@ export const sendGroupMessage = async (req, res) => {
   try {
     const { groupId } = req.params;
     const { text } = req.body;
+    console.log(text);
+    
+    
     const senderId = req.user.id;
 
     // Validate input

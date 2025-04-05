@@ -13,11 +13,11 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
+
 const app = express();
 app.use(express.json());
 const port = process.env.PORT;
-
-const prisma = new PrismaClient();
 
 const corsOptions = {
   origin: "http://localhost:3000", // Replace with your Next.js frontend URL
@@ -48,7 +48,7 @@ io.on("connection", (socket) => {
 
   socket.on("join-room", (data) => {
     const { sender, receiver } = data;
-    console.log(data);
+    // console.log(data);
 
     const users = [sender, receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
@@ -58,18 +58,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("message", async (data) => {
-    if (data.store) {
-      const message = await prisma.message.create({
-        data: {
-          text: data.text,
-          sender: data.sender,
-          receiver: data.receiver,
-        },
-      });
-      data.id = message.id;
-      data.createdAt = message.createdAt.toString(); // Changed from toISOString()
-    }
-
     const users = [data.sender, data.receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
     socket.broadcast.to(roomName).emit("receive-message", data);
@@ -87,39 +75,27 @@ io.on("connection", (socket) => {
 
   // In your server code (backend)
   socket.on("group-message", async (data) => {
+  // console.log(data);yy
+  
     try {
-      const { text, groupId, senderEmail } = data;
-
-      const sender = await prisma.user.findUnique({
-        where: { email: senderEmail },
-      });
-
-      if (!sender) {
-        console.error("Sender not found");
-        return;
+      // Fetch complete sender info if not provided
+      if (!data.sender && data.senderEmail) {
+        const sender = await prisma.user.findUnique({
+          where: { email: data.senderEmail },
+          select: { id: true, email: true, username: true },
+        });
+        data.sender = sender;
       }
 
-      const message = await prisma.groupMessage.create({
-        data: {
-          text,
-          groupId: parseInt(groupId),
-          senderId: sender.id,
-        },
-        include: {
-          sender: {
-            select: {
-              id: true,
-              username: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      socket.broadcast.to(`group_${groupId}`).emit("receive-group-message", {
-        ...message,
-        createdAt: message.createdAt.toString(), // Changed from toISOString()
-      });
+      // Ensure we have sender data before broadcasting
+      if (data.senderEmail) {
+        socket.broadcast
+          .to(`group_${data.groupId}`)
+          .emit("receive-group-message", {
+            ...data,
+            createdAt: new Date().toISOString(),
+          });
+      }
     } catch (error) {
       console.error("Error handling group message:", error);
     }

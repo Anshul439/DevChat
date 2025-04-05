@@ -17,6 +17,9 @@ export const storeMessage = async (
       return;
     }
 
+    // console.log(text);
+    
+
     // Find sender and receiver by email
     const sender = await prisma.user.findUnique({
       where: { email: senderEmail }
