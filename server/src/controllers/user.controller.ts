@@ -9,15 +9,54 @@ export const getUsers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const currentUserId = (req as any).user?.id; // Ensure your auth middleware sets this
-    console.log(currentUserId, "HIIIIIIIIIIIII");
-    
+    const currentUserId = (req as any).user?.id;
+    const { search } = req.query;
+
+    // Get IDs of friends and pending requests
+    const relationships = await prisma.friend.findMany({
+      where: {
+        OR: [{ userId: currentUserId }, { friendId: currentUserId }],
+      },
+      select: {
+        userId: true,
+        friendId: true,
+      },
+    });
+
+    const relatedUserIds = [
+      currentUserId,
+      ...relationships.map((r) =>
+        r.userId === currentUserId ? r.friendId : r.userId
+      ),
+    ];
 
     const users = await prisma.user.findMany({
       where: {
-        id: { not: currentUserId }, // Exclude the logged-in user
+        AND: [
+          { id: { notIn: relatedUserIds } }, // Exclude self and related users
+          search
+            ? {
+                OR: [
+                  {
+                    username: {
+                      contains: search as string,
+                      mode: "insensitive",
+                    },
+                  },
+                  {
+                    email: { contains: search as string, mode: "insensitive" },
+                  },
+                ],
+              }
+            : {},
+        ],
       },
-      select: { id: true, username: true, email: true },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        // Add any other fields you want to return
+      },
     });
 
     res.status(200).json(users);
