@@ -138,7 +138,9 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { email, setToken, setEmail } = useAuthStore();
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>([]);
+  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>(
+    []
+  );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
@@ -286,6 +288,8 @@ export default function ChatPage() {
       const res = await axios.get<Friendship[]>(`${rootUrl}/friend`, {
         withCredentials: true,
       });
+      console.log(res);
+      
       setFriendRequests(res.data);
     } catch (error) {
       console.error("Error fetching friend requests:", error);
@@ -303,41 +307,58 @@ export default function ChatPage() {
     }
   }, [rootUrl]);
 
-  const fetchNonFriends = useCallback(async (searchQuery = "") => {
-    try {
-      const res = await axios.get<User[]>(`${rootUrl}/user`, {
-        params: { search: searchQuery },
-        withCredentials: true,
-      });
-      setNonFriends(res.data);
-    } catch (error) {
-      console.error("Error fetching non-friends:", error);
-    }
-  }, [rootUrl]);
+  const fetchNonFriends = useCallback(
+    async (searchQuery = "") => {
+      try {
+        const res = await axios.get<User[]>(`${rootUrl}/user`, {
+          params: { search: searchQuery },
+          withCredentials: true,
+        });
+        setNonFriends(res.data);
+      } catch (error) {
+        console.error("Error fetching non-friends:", error);
+      }
+    },
+    [rootUrl]
+  );
 
   const sendFriendRequest = async (userId: number) => {
     try {
-      await axios.post(`${rootUrl}/friend`, { friendId: userId }, {
-        withCredentials: true,
-      });
+      await axios.post(
+        `${rootUrl}/friend`,
+        { friendId: userId },
+        {
+          withCredentials: true,
+        }
+      );
       fetchNonFriends(searchQuery);
     } catch (error) {
       console.error("Error sending friend request:", error);
     }
   };
 
-  const respondToFriendRequest = async (requestId: number, status: "accepted" | "rejected") => {
+  const respondToFriendRequest = async (
+    requestId: number,
+    status: "accepted" | "rejected"
+  ) => {
     try {
       console.log(requestId);
       
-      const response = await axios.post(`${rootUrl}/friend/${requestId}/accept-request`, { status }, {
-        withCredentials: true,
-      });
-      console.log(response);
-      
-      fetchFriendRequests();
       if (status === "accepted") {
+        const response = await axios.post(
+          `${rootUrl}/friend/${requestId}/accept-request`,
+          {},
+          { withCredentials: true }
+        );
+        fetchFriendRequests();
         fetchFriends();
+      } else {
+        // For rejected requests, delete the friendship
+        await axios.delete(`${rootUrl}/friend/${requestId}`, {
+          withCredentials: true,
+        });
+        fetchFriendRequests();
+        fetchNonFriends(searchQuery); // Refresh the non-friends list
       }
     } catch (error) {
       console.error("Error responding to friend request:", error);
@@ -411,30 +432,30 @@ export default function ChatPage() {
 
   const handleUserSelect = useCallback(
     (user: User) => {
-      const isFriend = friends.some(friend => friend.id === user.id);
+      const isFriend = friends.some((friend) => friend.id === user.id);
       if (!isFriend) {
         alert("You can only message friends");
         return;
       }
-  
+
       // Only reset messages if we're selecting a different user
       if (!selectedUser || selectedUser.id !== user.id) {
         setMessages([]);
       }
-  
+
       setSelectedUser(user);
       setSelectedGroup(null);
-  
+
       if (socketRef.current) {
         socketRef.current.emit("join-room", {
           sender: email,
           receiver: user.email,
         });
       }
-  
+
       // Always fetch messages when selecting a user
       fetchMessages();
-  
+
       setIsMobileSidebarOpen(false);
     },
     [email, friends, selectedUser, fetchMessages]
@@ -443,7 +464,7 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !email) return;
 
-    const isFriend = friends.some(friend => friend.id === selectedUser.id);
+    const isFriend = friends.some((friend) => friend.id === selectedUser.id);
     if (!isFriend) {
       alert("You can only message friends");
       return;
@@ -565,10 +586,10 @@ export default function ChatPage() {
   const confirmGroupCreation = async () => {
     if (selectedUsersForGroup.length === 0 || !groupName.trim()) return;
 
-    const allFriends = selectedUsersForGroup.every(user => 
-      friends.some(friend => friend.id === user.id)
+    const allFriends = selectedUsersForGroup.every((user) =>
+      friends.some((friend) => friend.id === user.id)
     );
-    
+
     if (!allFriends) {
       alert("You can only add friends to groups");
       return;
@@ -711,7 +732,7 @@ export default function ChatPage() {
         <div className="p-2 rounded-lg bg-orange-500 text-white">
           <MessageCircle className="h-6 w-6" />
         </div>
-        <button 
+        <button
           onClick={() => setIsFriendRequestsOpen(true)}
           className="p-2 rounded-lg hover:bg-gray-700 text-gray-300 relative"
         >
@@ -753,7 +774,7 @@ export default function ChatPage() {
         <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center mt-16 lg:mt-0">
           <h1 className="text-xl font-semibold">Chats</h1>
           <div className="flex items-center space-x-2">
-            <button 
+            <button
               onClick={() => setIsFriendRequestsOpen(true)}
               className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 relative"
             >
@@ -807,14 +828,20 @@ export default function ChatPage() {
                   fetchNonFriends(e.target.value);
                 }
               }}
-              placeholder={activeTab === "friends" ? "Search chats" : "Search users"}
+              placeholder={
+                activeTab === "friends" ? "Search chats" : "Search users"
+              }
               className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-md text-sm focus:outline-none"
             />
           </div>
           <div className="flex border-b border-gray-200 dark:border-gray-700 mt-2">
             <button
               onClick={() => setActiveTab("friends")}
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === "friends" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-500 dark:text-gray-400"}`}
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === "friends"
+                  ? "text-orange-500 border-b-2 border-orange-500"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
             >
               Friends
             </button>
@@ -823,7 +850,11 @@ export default function ChatPage() {
                 setActiveTab("add");
                 fetchNonFriends(searchQuery);
               }}
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === "add" ? "text-orange-500 border-b-2 border-orange-500" : "text-gray-500 dark:text-gray-400"}`}
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === "add"
+                  ? "text-orange-500 border-b-2 border-orange-500"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
             >
               Add Friends
             </button>
@@ -924,14 +955,18 @@ export default function ChatPage() {
                             </span>
                           )}
                         </div>
-                        {selectedUsersForGroup.some((u) => u.id === user.id) && (
+                        {selectedUsersForGroup.some(
+                          (u) => u.id === user.id
+                        ) && (
                           <div className="absolute top-0 right-0 h-4 w-4 bg-orange-500 rounded-full flex items-center justify-center">
                             <span className="text-white text-xs">✓</span>
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium truncate">{user.username}</h3>
+                        <h3 className="font-medium truncate">
+                          {user.username}
+                        </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {user.email}
                         </p>
@@ -1052,7 +1087,9 @@ export default function ChatPage() {
                 ))
               ) : (
                 <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  {searchQuery ? "No users found" : "Search for users to add as friends"}
+                  {searchQuery
+                    ? "No users found"
+                    : "Search for users to add as friends"}
                 </div>
               )}
             </>
@@ -1060,23 +1097,28 @@ export default function ChatPage() {
         </div>
 
         {/* Empty State for No Friends */}
-        {activeTab === "friends" && friends.length === 0 && !isCreatingGroup && (
-          <div className="flex-1 flex flex-col items-center justify-center p-4">
-            <div className="h-16 w-16 rounded-full bg-orange-100 dark:bg-gray-700 flex items-center justify-center mb-4">
-              <Users className="h-8 w-8 text-orange-500 dark:text-gray-400" />
+        {activeTab === "friends" &&
+          friends.length === 0 &&
+          !isCreatingGroup && (
+            <div className="flex-1 flex flex-col items-center justify-center p-4">
+              <div className="h-16 w-16 rounded-full bg-orange-100 dark:bg-gray-700 flex items-center justify-center mb-4">
+                <Users className="h-8 w-8 text-orange-500 dark:text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium mb-1">No Friends Yet</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-center mb-4">
+                Add friends to start chatting and create groups
+              </p>
+              <button
+                onClick={() => {
+                  setActiveTab("add");
+                  fetchNonFriends(searchQuery);
+                }}
+                className="px-4 py-2 bg-orange-500 text-white rounded-md"
+              >
+                Add Friends
+              </button>
             </div>
-            <h3 className="text-lg font-medium mb-1">No Friends Yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 text-center mb-4">
-              Add friends to start chatting and create groups
-            </p>
-            <button
-              onClick={() => setActiveTab("add")}
-              className="px-4 py-2 bg-orange-500 text-white rounded-md"
-            >
-              Add Friends
-            </button>
-          </div>
-        )}
+          )}
       </div>
 
       {/* Friend Requests Modal */}
@@ -1101,7 +1143,7 @@ export default function ChatPage() {
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {friendRequests.map((request) => (
                   <div
-                    key={request.id}
+                    key={request.userId}
                     className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700"
                   >
                     <div className="flex items-center">
@@ -1121,7 +1163,9 @@ export default function ChatPage() {
                         )}
                       </div>
                       <div>
-                        <h3 className="font-medium">{request.user?.username}</h3>
+                        <h3 className="font-medium">
+                          {request.user?.username}
+                        </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           {request.user?.email}
                         </p>
@@ -1129,15 +1173,20 @@ export default function ChatPage() {
                     </div>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => respondToFriendRequest(request.id, "accepted")}
+                        onClick={() =>
+                          respondToFriendRequest(request.userId, "accepted")
+                        }
                         className="px-3 py-1 bg-green-500 text-white rounded-md text-sm flex items-center"
                       >
                         <Check className="h-4 w-4 mr-1" />
                         Accept
                       </button>
                       <button
-                        onClick={() => respondToFriendRequest(request.id, "rejected")}
+                        onClick={() =>
+                          respondToFriendRequest(request.userId, "rejected")
+                        }
                         className="px-3 py-1 bg-red-500 text-white rounded-md text-sm"
+                        title="Decline and remove request"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1360,6 +1409,7 @@ export default function ChatPage() {
                   onClick={() => {
                     setIsMobileSidebarOpen(true);
                     setActiveTab("add");
+                    fetchNonFriends(searchQuery);
                   }}
                   className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-md"
                 >
