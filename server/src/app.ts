@@ -47,6 +47,25 @@ server.listen(port, () => {
 io.on("connection", (socket) => {
   console.log("User connected", socket.id);
 
+  // Add this to your existing socket connection handler
+  socket.on("send-friend-request", (data) => {
+    // Broadcast the friend request to the recipient if they're online
+    if (data.receiverEmail) {
+      // We'll emit to a user-specific room
+      socket.broadcast
+        .to(`user_${data.receiverEmail}`)
+        .emit("receive-friend-request", data);
+    }
+  });
+
+  // Add this to your connection handler to join a user-specific room
+  socket.on("join-user-room", (email) => {
+    if (email) {
+      console.log(`User ${email} joining personal room: user_${email}`);
+      socket.join(`user_${email}`);
+    }
+  });
+
   socket.on("join-room", (data) => {
     const { sender, receiver } = data;
     // console.log(data);
@@ -76,8 +95,8 @@ io.on("connection", (socket) => {
 
   // In your server code (backend)
   socket.on("group-message", async (data) => {
-  // console.log(data);yy
-  
+    // console.log(data);yy
+
     try {
       // Fetch complete sender info if not provided
       if (!data.sender && data.senderEmail) {
@@ -99,6 +118,19 @@ io.on("connection", (socket) => {
       }
     } catch (error) {
       console.error("Error handling group message:", error);
+    }
+  });
+
+  socket.on("friend-request-accepted", (data) => {
+    // Broadcast to the original sender's room that their request was accepted
+    const { senderEmail, receiverEmail, newFriend } = data;
+    
+    if (senderEmail) {
+      console.log(`Friend request accepted: notifying ${senderEmail}`);
+      socket.broadcast.to(`user_${senderEmail}`).emit("friend-request-accepted", {
+        newFriend,
+        acceptedBy: receiverEmail
+      });
     }
   });
 

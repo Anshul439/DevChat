@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 type ChatItem = {
   id: number;
@@ -128,6 +129,7 @@ const getInitials = (name: string) => {
 };
 
 export default function ChatPage() {
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -203,12 +205,58 @@ export default function ChatPage() {
     [selectedGroup]
   );
 
+  const fetchFriendRequests = useCallback(async () => {
+    try {
+      const res = await axios.get<Friendship[]>(`${rootUrl}/friend`, {
+        withCredentials: true,
+      });
+      console.log(res);
+
+      setFriendRequests(res.data);
+    } catch (error) {
+      console.error("Error fetching friend requests:", error);
+    }
+  }, [rootUrl]);
+
   const setupSocket = useCallback(() => {
     if (!socketRef.current) {
       socketRef.current = io("http://localhost:8000", {
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 2000,
+      });
+
+      if (email) {
+        socketRef.current?.emit("join-user-room", email);
+      }
+
+      // Add this inside your useEffect with socket setup
+      socketRef.current.on("receive-friend-request", (data) => {
+        console.log("Friend request received:", data);
+        fetchFriendRequests();
+
+        toast({
+          title: "New Friend Request",
+          description: `${data.senderName} sent you a friend request`,
+        });
+      });
+
+      socketRef.current.on("friend-request-accepted", (data) => {
+        console.log("Friend request accepted notification:", data);
+
+        // Add the new friend to friends list
+        if (data.newFriend) {
+          setFriends((prevFriends) => {
+            if (!prevFriends.some((f) => f.id === data.newFriend.id)) {
+              return [...prevFriends, data.newFriend];
+            }
+            return prevFriends;
+          });
+          toast({
+            title: "Friend request accepted",
+            description: `${data.newFriend.username} accepted your friend request!`,
+          });
+        }
       });
 
       socketRef.current.on("connect", () => {
@@ -239,6 +287,7 @@ export default function ChatPage() {
           "receive-group-message",
           handleReceiveGroupMessage
         );
+        socketRef.current.off("friend-request-accepted");
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -250,6 +299,8 @@ export default function ChatPage() {
     handleReceiveMessage,
     handleNewGroupAdded,
     handleReceiveGroupMessage,
+    fetchFriendRequests,
+    toast,
   ]);
 
   useEffect(() => {
@@ -283,19 +334,6 @@ export default function ChatPage() {
     setCombinedChats(combineAndSortChats(friends, groups));
   }, [friends, groups, combineAndSortChats]);
 
-  const fetchFriendRequests = useCallback(async () => {
-    try {
-      const res = await axios.get<Friendship[]>(`${rootUrl}/friend`, {
-        withCredentials: true,
-      });
-      console.log(res);
-      
-      setFriendRequests(res.data);
-    } catch (error) {
-      console.error("Error fetching friend requests:", error);
-    }
-  }, [rootUrl]);
-
   const fetchFriends = useCallback(async () => {
     try {
       const res = await axios.get<User[]>(`${rootUrl}/friend/friends-list`, {
@@ -324,13 +362,25 @@ export default function ChatPage() {
 
   const sendFriendRequest = async (userId: number) => {
     try {
-      await axios.post(
+      const response = await axios.post(
         `${rootUrl}/friend`,
         { friendId: userId },
         {
           withCredentials: true,
         }
       );
+
+      // If API request is successful, get the user's email and emit socket event
+      const targetUser = nonFriends.find((user) => user.id === userId);
+      if (socketRef.current && targetUser) {
+        socketRef.current.emit("send-friend-request", {
+          senderEmail: email,
+          receiverEmail: targetUser.email,
+          senderName: response.data.senderUsername,
+          friendRequest: response.data, // Include the request data from the API response
+        });
+      }
+
       fetchNonFriends(searchQuery);
     } catch (error) {
       console.error("Error sending friend request:", error);
@@ -342,26 +392,56 @@ export default function ChatPage() {
     status: "accepted" | "rejected"
   ) => {
     try {
-      console.log(requestId);
-      
       if (status === "accepted") {
         const response = await axios.post(
           `${rootUrl}/friend/${requestId}/accept-request`,
           {},
           { withCredentials: true }
         );
-        fetchFriendRequests();
-        fetchFriends();
+
+        const friendRequest = friendRequests.find(
+          (req) => req.userId === requestId
+        );
+
+        if (friendRequest && friendRequest.user && socketRef.current) {
+          socketRef.current.emit("friend-request-accepted", {
+            senderEmail: friendRequest.user.email,
+            receiverEmail: email,
+            newFriend: {
+              id: friendRequest.userId,
+              username: friendRequest.user.username,
+              email: friendRequest.user.email,
+              avatar: friendRequest.user.avatar,
+            },
+          });
+        }
+
+        // Show success toast
+        toast({
+          title: "Friend request accepted",
+          description: `You are now friends with ${friendRequest?.user?.username}!`,
+        });
       } else {
-        // For rejected requests, delete the friendship
         await axios.delete(`${rootUrl}/friend/${requestId}`, {
           withCredentials: true,
         });
-        fetchFriendRequests();
-        fetchNonFriends(searchQuery); // Refresh the non-friends list
+        // Show rejection toast if needed
+        toast({
+          title: "Friend request declined",
+          variant: "destructive",
+        });
       }
+
+      fetchFriendRequests();
+      fetchFriends();
+      fetchNonFriends(searchQuery);
     } catch (error) {
       console.error("Error responding to friend request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to process friend request",
+        variant: "destructive",
+      });
     }
   };
 

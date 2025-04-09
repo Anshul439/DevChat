@@ -1,3 +1,12 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* globals.css */
+[data-sonner-toast] {
+    padding: 1rem;
+}
+
+[data-sonner-toast] [data-button] {
+    margin-top: 0.75rem;
+}

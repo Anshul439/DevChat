@@ -44,7 +44,20 @@ export const sendFriendRequest = async (
       });
     }
 
-    const friend = await prisma.friend.create({
+    const sender = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+      },
+    });
+
+    if (!sender) {
+      return res.status(404).json({ error: "Sender not found" });
+    }
+
+    const friendship = await prisma.friend.create({
       data: {
         userId,
         friendId,
@@ -52,7 +65,7 @@ export const sendFriendRequest = async (
       },
     });
 
-    res.status(201).json(friend);
+    res.status(201).json({ ...friendship, senderUsername: sender.username });
   } catch (error) {
     console.error("Error sending friend request:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -106,12 +119,12 @@ export const acceptFriendRequest = async (
     const friendship = await prisma.friend.findUnique({
       where: {
         userId_friendId: {
-          userId: parseInt(id),   // sender
-          friendId: userId,       // receiver (current user)
+          userId: parseInt(id), // sender
+          friendId: userId, // receiver (current user)
         },
       },
     });
-    
+
     // console.log(friend.friendId, userId);
 
     // if (!friend || friend.friendId !== userId) {
@@ -129,8 +142,8 @@ export const acceptFriendRequest = async (
     const updatedFriendship = await prisma.friend.update({
       where: {
         userId_friendId: {
-          userId: parseInt(id),   // sender
-          friendId: userId,       // receiver (current user)
+          userId: parseInt(id), // sender
+          friendId: userId, // receiver (current user)
         },
       },
       data: {
