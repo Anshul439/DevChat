@@ -122,15 +122,22 @@ io.on("connection", (socket) => {
   });
 
   socket.on("friend-request-accepted", (data) => {
-    // Broadcast to the original sender's room that their request was accepted
-    const { senderEmail, receiverEmail, newFriend } = data;
-    
-    if (senderEmail) {
-      console.log(`Friend request accepted: notifying ${senderEmail}`);
-      socket.broadcast.to(`user_${senderEmail}`).emit("friend-request-accepted", {
-        newFriend,
-        acceptedBy: receiverEmail
-      });
+    // Broadcast to both users involved
+    if (data.senderEmail) {
+      io.to(`user_${data.senderEmail}`).emit("friend-request-accepted", data);
+    }
+    if (data.receiverEmail) {
+      io.to(`user_${data.receiverEmail}`).emit("friend-request-accepted", data);
+    }
+  });
+
+  socket.on("friend-request-rejected", (data) => {
+    // Broadcast to both users involved
+    if (data.senderEmail) {
+      io.to(`user_${data.senderEmail}`).emit("friend-request-rejected", data);
+    }
+    if (data.receiverEmail) {
+      io.to(`user_${data.receiverEmail}`).emit("friend-request-rejected", data);
     }
   });
 
