@@ -127,7 +127,9 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { email, setToken, setEmail } = useAuthStore();
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>([]);
+  const [selectedUsersForGroup, setSelectedUsersForGroup] = useState<User[]>(
+    []
+  );
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
@@ -139,42 +141,54 @@ export default function ChatPage() {
   const router = useRouter();
 
   // Memoize socket handlers to prevent re-creation on each render
-const handleReceiveMessage = useCallback((data: any) => {
-  const isUser = data.sender === email;
+  const handleReceiveMessage = useCallback(
+    (data: any) => {
+      const isUser = data.sender === email;
 
-  // Only update messages if we're in the relevant chat
-  if (selectedUser && 
-      (data.sender === selectedUser.email || data.receiver === selectedUser.email)) {
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      {
-        id: data.id || Date.now(), // Use server ID if available
-        text: data.text,
-        isUser: isUser,
-        sender: data.sender,
-        receiver: data.receiver,
-        createdAt: data.createdAt || new Date().toISOString(),
-      },
-    ]);
-  }
-}, [email, selectedUser?.email]); // Add selectedUser.email to dependencies
+      // Only update messages if we're in the relevant chat
+      if (
+        selectedUser &&
+        (data.sender === selectedUser.email ||
+          data.receiver === selectedUser.email)
+      ) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            id: data.id || Date.now(), // Use server ID if available
+            text: data.text,
+            isUser: isUser,
+            sender: data.sender,
+            receiver: data.receiver,
+            createdAt: data.createdAt || new Date().toISOString(),
+          },
+        ]);
+      }
+    },
+    [email, selectedUser?.email]
+  ); // Add selectedUser.email to dependencies
 
-  const handleNewGroupAdded = useCallback((newGroup: any) => {
-    // Check if the current user is a member of this group
-    const userIsMember = newGroup.members.some(
-      (member: any) => member.user.email === email
-    );
+  const handleNewGroupAdded = useCallback(
+    (newGroup: any) => {
+      // Check if the current user is a member of this group
+      const userIsMember = newGroup.members.some(
+        (member: any) => member.user.email === email
+      );
 
-    if (userIsMember) {
-      setGroups((prev) => [...prev, newGroup]);
-    }
-  }, [email]);
+      if (userIsMember) {
+        setGroups((prev) => [...prev, newGroup]);
+      }
+    },
+    [email]
+  );
 
-  const handleReceiveGroupMessage = useCallback((message: GroupMessage) => {
-    if (selectedGroup && message.groupId === selectedGroup.id) {
-      setGroupMessages((prev) => [...prev, message]);
-    }
-  }, [selectedGroup]);
+  const handleReceiveGroupMessage = useCallback(
+    (message: GroupMessage) => {
+      if (selectedGroup && message.groupId === selectedGroup.id) {
+        setGroupMessages((prev) => [...prev, message]);
+      }
+    },
+    [selectedGroup]
+  );
 
   // Socket connection with improved handling for hot reloading
   const setupSocket = useCallback(() => {
@@ -187,7 +201,7 @@ const handleReceiveMessage = useCallback((data: any) => {
 
       socketRef.current.on("connect", () => {
         console.log("Connected to socket server:", socketRef.current?.id);
-        
+
         // If there's a selected user, join their room immediately
         if (selectedUser && email) {
           socketRef.current?.emit("join-room", {
@@ -195,7 +209,7 @@ const handleReceiveMessage = useCallback((data: any) => {
             receiver: selectedUser.email,
           });
         }
-        
+
         // If there's a selected group, join that room immediately
         if (selectedGroup) {
           socketRef.current?.emit("join-group-room", selectedGroup.id);
@@ -212,12 +226,22 @@ const handleReceiveMessage = useCallback((data: any) => {
       if (socketRef.current) {
         socketRef.current.off("receive-message", handleReceiveMessage);
         socketRef.current.off("new-group-added", handleNewGroupAdded);
-        socketRef.current.off("receive-group-message", handleReceiveGroupMessage);
+        socketRef.current.off(
+          "receive-group-message",
+          handleReceiveGroupMessage
+        );
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [email, selectedUser, selectedGroup, handleReceiveMessage, handleNewGroupAdded, handleReceiveGroupMessage]);
+  }, [
+    email,
+    selectedUser,
+    selectedGroup,
+    handleReceiveMessage,
+    handleNewGroupAdded,
+    handleReceiveGroupMessage,
+  ]);
 
   useEffect(() => {
     const cleanup = setupSocket();
@@ -252,63 +276,63 @@ const handleReceiveMessage = useCallback((data: any) => {
   }, [users, groups, combineAndSortChats]);
 
   // Replace the separate fetchUsers and fetchGroups useEffect hooks with this:
-const fetchUsersAndGroups = useCallback(async () => {
-  try {
-    // Fetch both simultaneously
-    const [usersResponse, groupsResponse] = await Promise.all([
-      axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
-      axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true })
-    ]);
-    
-    // Set both states together
-    setUsers(usersResponse.data);
-    setGroups(groupsResponse.data);
-  } catch (error) {
-    console.error("Error fetching users and groups:", error);
-    // Set empty arrays on error to prevent undefined states
-    setUsers([]);
-    setGroups([]);
-  }
-}, [rootUrl]);
+  const fetchUsersAndGroups = useCallback(async () => {
+    try {
+      // Fetch both simultaneously
+      const [usersResponse, groupsResponse] = await Promise.all([
+        axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
+        axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
+      ]);
 
-useEffect(() => {
-  fetchUsersAndGroups();
-}, [fetchUsersAndGroups]);
+      // Set both states together
+      setUsers(usersResponse.data);
+      setGroups(groupsResponse.data);
+    } catch (error) {
+      console.error("Error fetching users and groups:", error);
+      // Set empty arrays on error to prevent undefined states
+      setUsers([]);
+      setGroups([]);
+    }
+  }, [rootUrl]);
+
+  useEffect(() => {
+    fetchUsersAndGroups();
+  }, [fetchUsersAndGroups]);
 
   // Fetch Messages
-const fetchMessages = useCallback(async () => {
-  if (!selectedUser || !email) return;
-  
-  setLoadingMessages(true);
-  try {
-    const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
-      params: {
-        user1Email: email,
-        user2Email: selectedUser.email,
-      },
-      withCredentials: true,
-      timeout: 10000, // Add timeout
-    });
+  const fetchMessages = useCallback(async () => {
+    if (!selectedUser || !email) return;
 
-    const formattedMessages = res.data.map((msg) => ({
-      id: msg.id,
-      text: msg.text,
-      isUser: msg.sender.email === email,
-      sender: msg.sender.email,
-      receiver: msg.receiver.email,
-      createdAt: msg.createdAt,
-      senderObject: msg.sender,
-      receiverObject: msg.receiver,
-    }));
+    setLoadingMessages(true);
+    try {
+      const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
+        params: {
+          user1Email: email,
+          user2Email: selectedUser.email,
+        },
+        withCredentials: true,
+        timeout: 10000, // Add timeout
+      });
 
-    setMessages(formattedMessages);
-  } catch (error) {
-    console.error("Error fetching messages:", error);
-    setMessages([]); // Set empty array on error
-  } finally {
-    setLoadingMessages(false);
-  }
-}, [selectedUser?.email, email, rootUrl]); // More specific dependencies
+      const formattedMessages = res.data.map((msg) => ({
+        id: msg.id,
+        text: msg.text,
+        isUser: msg.sender.email === email,
+        sender: msg.sender.email,
+        receiver: msg.receiver.email,
+        createdAt: msg.createdAt,
+        senderObject: msg.sender,
+        receiverObject: msg.receiver,
+      }));
+
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      setMessages([]); // Set empty array on error
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [selectedUser?.email, email, rootUrl]); // More specific dependencies
 
   useEffect(() => {
     if (selectedUser && email) {
@@ -320,149 +344,161 @@ const fetchMessages = useCallback(async () => {
     scrollToBottom();
   }, [messages, selectedUser, groupMessages, selectedGroup]);
 
-
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   };
 
-const handleUserSelect = useCallback((user: User) => {
-  setSelectedUser(user);
-  setSelectedGroup(null);
-  setMessages([]); // Clear messages immediately
-  setLoadingMessages(true); // Set loading state
-  
-  // Join room immediately
-  if (socketRef.current && email) {
-    socketRef.current.emit("join-room", {
-      sender: email,
-      receiver: user.email,
-    });
-  }
-  
-  setUsers((prevUsers) =>
-    prevUsers.map((u) =>
-      u.id === user.id ? { ...u, hasNewMessages: false } : u
-    )
-  );
-  
-  setIsMobileSidebarOpen(false);
-}, [email]);
+  const handleUserSelect = useCallback(
+    (user: User) => {
+      setSelectedUser(user);
+      setSelectedGroup(null);
+      setMessages([]); // Clear messages immediately
+      setLoadingMessages(true); // Set loading state
 
-const handleSendMessage = async () => {
-  if (!newMessage.trim() || !selectedUser || !email) return;
+      // Join room immediately
+      if (socketRef.current && email) {
+        socketRef.current.emit("join-room", {
+          sender: email,
+          receiver: user.email,
+        });
+      }
 
-  const messageText = newMessage.trim();
-  const tempId = Date.now();
-  
-  // Clear input immediately for better UX
-  setNewMessage("");
-
-  // Add message to UI immediately (optimistic update)
-  const optimisticMessage = {
-    id: tempId,
-    text: messageText,
-    isUser: true,
-    sender: email,
-    receiver: selectedUser.email,
-    createdAt: new Date().toISOString(),
-  };
-
-  setMessages((prev) => [...prev, optimisticMessage]);
-
-  try {
-    // Send to server and socket concurrently
-    const [response] = await Promise.all([
-      axios.post(`${rootUrl}/message`, {
-        text: messageText,
-        senderEmail: email,
-        receiverEmail: selectedUser.email,
-      }, {
-        withCredentials: true,
-        timeout: 10000,
-      }),
-      // Send socket message immediately without waiting for server response
-      socketRef.current?.emit("message", {
-        text: messageText,
-        sender: email,
-        receiver: selectedUser.email,
-        id: tempId,
-        createdAt: new Date().toISOString(),
-      })
-    ]);
-
-    // Update with server response
-    if (response.data.id) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === tempId 
-            ? { ...msg, id: response.data.id, createdAt: response.data.createdAt }
-            : msg
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === user.id ? { ...u, hasNewMessages: false } : u
         )
       );
-    }
 
-  } catch (error) {
-    console.error("Error sending message:", error);
-    // Remove optimistic message on error
-    setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-    // Restore message in input
-    setNewMessage(messageText);
-  }
-};
-
-const sendGroupMessage = async () => {
-  if (!newMessage.trim() || !selectedGroup || !email) return;
-
-  const messageText = newMessage.trim();
-  const tempId = Date.now();
-  
-  // Clear input immediately
-  setNewMessage("");
-
-  // Optimistic update
-  const optimisticMessage = {
-    id: tempId,
-    text: messageText,
-    groupId: selectedGroup.id,
-    sender: {
-      id: tempId,
-      email,
-      username: users.find((u) => u.email === email)?.username || "",
+      setIsMobileSidebarOpen(false);
     },
-    createdAt: new Date().toISOString(),
+    [email]
+  );
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedUser || !email) return;
+
+    const messageText = newMessage.trim();
+    const tempId = Date.now();
+
+    // Clear input immediately for better UX
+    setNewMessage("");
+
+    // Add message to UI immediately (optimistic update)
+    const optimisticMessage = {
+      id: tempId,
+      text: messageText,
+      isUser: true,
+      sender: email,
+      receiver: selectedUser.email,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    try {
+      // Send to server and socket concurrently
+      const [response] = await Promise.all([
+        axios.post(
+          `${rootUrl}/message`,
+          {
+            text: messageText,
+            senderEmail: email,
+            receiverEmail: selectedUser.email,
+          },
+          {
+            withCredentials: true,
+            timeout: 10000,
+          }
+        ),
+        // Send socket message immediately without waiting for server response
+        socketRef.current?.emit("message", {
+          text: messageText,
+          sender: email,
+          receiver: selectedUser.email,
+          id: tempId,
+          createdAt: new Date().toISOString(),
+        }),
+      ]);
+
+      // Update with server response
+      if (response.data.id) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId
+              ? {
+                  ...msg,
+                  id: response.data.id,
+                  createdAt: response.data.createdAt,
+                }
+              : msg
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      // Remove optimistic message on error
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      // Restore message in input
+      setNewMessage(messageText);
+    }
   };
 
-  setGroupMessages((prev) => [...prev, optimisticMessage]);
+  const sendGroupMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup || !email) return;
 
-  try {
-    // Send socket message immediately
-    if (socketRef.current) {
-      socketRef.current.emit("group-message", {
-        text: messageText,
-        groupId: selectedGroup.id,
-        senderEmail: email,
-      });
-    }
+    const messageText = newMessage.trim();
+    const tempId = Date.now();
 
-    // Server request can happen in background
-    await axios.post(`${rootUrl}/group/${selectedGroup.id}/messages`, {
+    // Clear input immediately
+    setNewMessage("");
+
+    // Optimistic update
+    const optimisticMessage = {
+      id: tempId,
       text: messageText,
       groupId: selectedGroup.id,
-      senderEmail: email,
-    }, {
-      withCredentials: true,
-      timeout: 10000,
-    });
+      sender: {
+        id: tempId,
+        email,
+        username: users.find((u) => u.email === email)?.username || "",
+      },
+      createdAt: new Date().toISOString(),
+    };
 
-  } catch (error) {
-    console.error("Error sending group message:", error);
-    // Remove optimistic message on error
-    setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-    setNewMessage(messageText);
-  }
-};
+    setGroupMessages((prev) => [...prev, optimisticMessage]);
+
+    try {
+      // Send socket message immediately
+      if (socketRef.current) {
+        socketRef.current.emit("group-message", {
+          text: messageText,
+          groupId: selectedGroup.id,
+          senderEmail: email,
+        });
+      }
+
+      // Server request can happen in background
+      await axios.post(
+        `${rootUrl}/group/${selectedGroup.id}/messages`,
+        {
+          text: messageText,
+          groupId: selectedGroup.id,
+          senderEmail: email,
+        },
+        {
+          withCredentials: true,
+          timeout: 10000,
+        }
+      );
+    } catch (error) {
+      console.error("Error sending group message:", error);
+      // Remove optimistic message on error
+      setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      setNewMessage(messageText);
+    }
+  };
 
   // Group Creation Methods
   const handleCreateGroup = () => {
@@ -524,34 +560,48 @@ const sendGroupMessage = async () => {
     }
   };
 
-  const handleGroupSelect = useCallback((group: Group) => {
-    setSelectedGroup(group);
-    setSelectedUser(null);
-    setGroups((prev) =>
-      prev.map((g) => (g.id === group.id ? { ...g, hasNewMessages: false } : g))
-    );
-    fetchGroupMessages(group.id);
-    
-    if (socketRef.current) {
-      socketRef.current.emit("join-group-room", group.id);
-    }
-    
-    setIsMobileSidebarOpen(false);
-  }, []);
+  const fetchGroupMessages = useCallback(
+    async (groupId: number) => {
+      setLoadingMessages(true);
+      try {
+        const res = await axios.get<GroupMessage[]>(
+          `${rootUrl}/group/${groupId}/messages`,
+          {
+            withCredentials: true,
+          }
+        );
+        setGroupMessages(res.data);
+      } catch (error) {
+        console.error("Error fetching group messages:", error);
+        setGroupMessages([]);
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [rootUrl]
+  );
 
-  const fetchGroupMessages = useCallback(async (groupId: number) => {
-    try {
-      const res = await axios.get<GroupMessage[]>(
-        `${rootUrl}/group/${groupId}/messages`,
-        {
-          withCredentials: true,
-        }
+  const handleGroupSelect = useCallback(
+    (group: Group) => {
+      setSelectedGroup(group);
+      setSelectedUser(null);
+      setGroupMessages([]); // Clear immediately
+      setLoadingMessages(true); // Use the same loading state
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === group.id ? { ...g, hasNewMessages: false } : g
+        )
       );
-      setGroupMessages(res.data);
-    } catch (error) {
-      console.error("Error fetching group messages:", error);
-    }
-  }, [rootUrl]);
+
+      if (socketRef.current) {
+        socketRef.current.emit("join-group-room", group.id);
+      }
+
+      fetchGroupMessages(group.id);
+      setIsMobileSidebarOpen(false);
+    },
+    [fetchGroupMessages]
+  );
 
   const handleLogout = async () => {
     try {
@@ -895,33 +945,44 @@ const sendGroupMessage = async () => {
             </div>
 
             {/* Group Messages Area */}
+            {/* Group Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {groupMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.sender.email === email
-                      ? "justify-end"
-                      : "justify-start"
-                  }`}
-                >
-                  <div
-                    className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-                      message.sender.email === email
-                        ? "bg-orange-500 text-white rounded-tr-none"
-                        : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
-                    }`}
-                  >
-                    {message.sender.email !== email && (
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-300 mb-1">
-                        {message.sender.username}
-                      </p>
-                    )}
-                    <p>{message.text}</p>
+              {loadingMessages ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Loading messages...
                   </div>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
+              ) : (
+                <>
+                  {groupMessages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${
+                        message.sender.email === email
+                          ? "justify-end"
+                          : "justify-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-xs md:max-w-md rounded-lg p-3 ${
+                          message.sender.email === email
+                            ? "bg-orange-500 text-white rounded-tr-none"
+                            : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
+                        }`}
+                      >
+                        {message.sender.email !== email && (
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-300 mb-1">
+                            {message.sender.username}
+                          </p>
+                        )}
+                        <p>{message.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
             </div>
 
             {/* Group Message Input */}
