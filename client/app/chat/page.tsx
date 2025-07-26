@@ -251,21 +251,29 @@ const handleReceiveMessage = useCallback((data: any) => {
     setCombinedChats(combineAndSortChats(users, groups));
   }, [users, groups, combineAndSortChats]);
 
-  // Fetch Users
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await axios.get<User[]>(`${rootUrl}/user`, {
-        withCredentials: true,
-      });
-      setUsers(res.data);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    }
-  }, [rootUrl]);
+  // Replace the separate fetchUsers and fetchGroups useEffect hooks with this:
+const fetchUsersAndGroups = useCallback(async () => {
+  try {
+    // Fetch both simultaneously
+    const [usersResponse, groupsResponse] = await Promise.all([
+      axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
+      axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true })
+    ]);
+    
+    // Set both states together
+    setUsers(usersResponse.data);
+    setGroups(groupsResponse.data);
+  } catch (error) {
+    console.error("Error fetching users and groups:", error);
+    // Set empty arrays on error to prevent undefined states
+    setUsers([]);
+    setGroups([]);
+  }
+}, [rootUrl]);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+useEffect(() => {
+  fetchUsersAndGroups();
+}, [fetchUsersAndGroups]);
 
   // Fetch Messages
 const fetchMessages = useCallback(async () => {
@@ -312,20 +320,6 @@ const fetchMessages = useCallback(async () => {
     scrollToBottom();
   }, [messages, selectedUser, groupMessages, selectedGroup]);
 
-  const fetchGroups = useCallback(async () => {
-    try {
-      const res = await axios.get<Group[]>(`${rootUrl}/group`, {
-        withCredentials: true,
-      });
-      setGroups(res.data);
-    } catch (error) {
-      console.error("Error fetching groups:", error);
-    }
-  }, [rootUrl]);
-
-  useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
