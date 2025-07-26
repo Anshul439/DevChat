@@ -57,11 +57,38 @@ io.on("connection", (socket) => {
     socket.join(roomName);
   });
 
-  socket.on("message", async (data) => {
+socket.on("message", async (data) => {
+  try {
+    let messageId = data.id;
+    let createdAt = data.createdAt;
+
+    // Only store if explicitly requested or if no ID provided
+    if (data.store || !data.id) {
+      const message = await prisma.message.create({
+        data: {
+          text: data.text,
+          sender: data.sender,
+          receiver: data.receiver,
+        },
+      });
+      messageId = message.id;
+      createdAt = message.createdAt;
+    }
+
+    // Broadcast immediately with updated data
     const users = [data.sender, data.receiver].sort();
     const roomName = `room_${users[0]}_${users[1]}`;
-    socket.broadcast.to(roomName).emit("receive-message", data);
-  });
+    
+    socket.broadcast.to(roomName).emit("receive-message", {
+      ...data,
+      id: messageId,
+      createdAt: createdAt,
+    });
+
+  } catch (error) {
+    console.error("Error handling message:", error);
+  }
+});
 
   socket.on("join-group-room", (groupId) => {
     console.log(`User joining group room: group_${groupId}`);
