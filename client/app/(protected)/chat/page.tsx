@@ -689,22 +689,6 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Left Navigation Sidebar (Desktop) */}
-      <div className="hidden lg:flex w-16 bg-gray-800 flex-col items-center py-4 space-y-6">
-        <div className="p-2 rounded-lg bg-orange-500 text-white">
-          <MessageCircle className="h-6 w-6" />
-        </div>
-        <button className="p-2 rounded-lg hover:bg-gray-700 text-gray-300">
-          <Users className="h-6 w-6" />
-        </button>
-        <button className="p-2 rounded-lg hover:bg-gray-700 text-gray-300">
-          <User className="h-6 w-6" />
-        </button>
-        <button className="p-2 rounded-lg hover:bg-gray-700 text-gray-300">
-          <Settings className="h-6 w-6" />
-        </button>
-      </div>
-
       {/* Contacts List */}
       <div
         className={`
