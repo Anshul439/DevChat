@@ -300,39 +300,44 @@ export default function ChatPage() {
   }, [fetchUsersAndGroups]);
 
   // Fetch Messages
-  const fetchMessages = useCallback(async () => {
-    if (!selectedUser || !email) return;
+const fetchMessages = useCallback(async () => {
+  if (!selectedUser || !email) return;
 
-    setLoadingMessages(true);
-    try {
-      const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
-        params: {
-          user1Email: email,
-          user2Email: selectedUser.email,
-        },
-        withCredentials: true,
-        timeout: 10000, // Add timeout
-      });
+  setLoadingMessages(true);
+  try {
+    const res = await axios.get<ApiMessage[]>(`${rootUrl}/message`, {
+      params: {
+        user1Email: email,
+        user2Email: selectedUser.email,
+      },
+      withCredentials: true,
+      timeout: 10000,
+    });
 
-      const formattedMessages = res.data.map((msg) => ({
-        id: msg.id,
-        text: msg.text,
-        isUser: msg.sender.email === email,
-        sender: msg.sender.email,
-        receiver: msg.receiver.email,
-        createdAt: msg.createdAt,
-        senderObject: msg.sender,
-        receiverObject: msg.receiver,
-      }));
+    const formattedMessages = res.data.map((msg) => ({
+      id: msg.id,
+      text: msg.text,
+      isUser: msg.sender.email === email,
+      sender: msg.sender.email,
+      receiver: msg.receiver.email,
+      createdAt: msg.createdAt,
+      senderObject: msg.sender,
+      receiverObject: msg.receiver,
+    }));
 
-      setMessages(formattedMessages);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      setMessages([]); // Set empty array on error
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [selectedUser?.email, email, rootUrl]); // More specific dependencies
+    setMessages(formattedMessages);
+    
+    // Scroll to bottom after messages are set
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    setMessages([]);
+  } finally {
+    setLoadingMessages(false);
+  }
+}, [selectedUser?.email, email, rootUrl]);
 
   useEffect(() => {
     if (selectedUser && email) {
@@ -340,41 +345,44 @@ export default function ChatPage() {
     }
   }, [selectedUser, fetchMessages]);
 
-  useEffect(() => {
+useEffect(() => {
+  // Only scroll on new messages, not when switching chats
+  if ((messages.length > 0 && selectedUser) || (groupMessages.length > 0 && selectedGroup)) {
     scrollToBottom();
-  }, [messages, selectedUser, groupMessages, selectedGroup]);
+  }
+}, [messages.length, groupMessages.length]); // Changed dependencies
 
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+const scrollToBottom = () => {
+  if (messagesEndRef.current) {
+    messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+  }
+};
+
+const handleUserSelect = useCallback(
+  (user: User) => {
+    setSelectedUser(user);
+    setSelectedGroup(null);
+    setMessages([]); // Clear messages immediately
+    setLoadingMessages(true);
+
+    // Join room immediately
+    if (socketRef.current && email) {
+      socketRef.current.emit("join-room", {
+        sender: email,
+        receiver: user.email,
+      });
     }
-  };
 
-  const handleUserSelect = useCallback(
-    (user: User) => {
-      setSelectedUser(user);
-      setSelectedGroup(null);
-      setMessages([]); // Clear messages immediately
-      setLoadingMessages(true); // Set loading state
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u.id === user.id ? { ...u, hasNewMessages: false } : u
+      )
+    );
 
-      // Join room immediately
-      if (socketRef.current && email) {
-        socketRef.current.emit("join-room", {
-          sender: email,
-          receiver: user.email,
-        });
-      }
-
-      setUsers((prevUsers) =>
-        prevUsers.map((u) =>
-          u.id === user.id ? { ...u, hasNewMessages: false } : u
-        )
-      );
-
-      setIsMobileSidebarOpen(false);
-    },
-    [email]
-  );
+    setIsMobileSidebarOpen(false);
+  },
+  [email]
+);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !email) return;
@@ -560,48 +568,54 @@ export default function ChatPage() {
     }
   };
 
-  const fetchGroupMessages = useCallback(
-    async (groupId: number) => {
-      setLoadingMessages(true);
-      try {
-        const res = await axios.get<GroupMessage[]>(
-          `${rootUrl}/group/${groupId}/messages`,
-          {
-            withCredentials: true,
-          }
-        );
-        setGroupMessages(res.data);
-      } catch (error) {
-        console.error("Error fetching group messages:", error);
-        setGroupMessages([]);
-      } finally {
-        setLoadingMessages(false);
-      }
-    },
-    [rootUrl]
-  );
-
-  const handleGroupSelect = useCallback(
-    (group: Group) => {
-      setSelectedGroup(group);
-      setSelectedUser(null);
-      setGroupMessages([]); // Clear immediately
-      setLoadingMessages(true); // Use the same loading state
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id === group.id ? { ...g, hasNewMessages: false } : g
-        )
+const fetchGroupMessages = useCallback(
+  async (groupId: number) => {
+    setLoadingMessages(true);
+    try {
+      const res = await axios.get<GroupMessage[]>(
+        `${rootUrl}/group/${groupId}/messages`,
+        {
+          withCredentials: true,
+        }
       );
+      setGroupMessages(res.data);
+      
+      // Scroll to bottom after messages are set
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    } catch (error) {
+      console.error("Error fetching group messages:", error);
+      setGroupMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  },
+  [rootUrl]
+);
 
-      if (socketRef.current) {
-        socketRef.current.emit("join-group-room", group.id);
-      }
 
-      fetchGroupMessages(group.id);
-      setIsMobileSidebarOpen(false);
-    },
-    [fetchGroupMessages]
-  );
+const handleGroupSelect = useCallback(
+  (group: Group) => {
+    setSelectedGroup(group);
+    setSelectedUser(null);
+    setGroupMessages([]);
+    setLoadingMessages(true);
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === group.id ? { ...g, hasNewMessages: false } : g
+      )
+    );
+
+    if (socketRef.current) {
+      socketRef.current.emit("join-group-room", group.id);
+    }
+
+    fetchGroupMessages(group.id);
+    setIsMobileSidebarOpen(false);
+  },
+  [fetchGroupMessages]
+);
 
   const handleLogout = async () => {
     try {
