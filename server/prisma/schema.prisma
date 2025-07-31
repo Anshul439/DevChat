@@ -24,6 +24,10 @@ model User {
   createdGroups     Group[]        @relation("CreatedGroups")
   groupMemberships  GroupMember[]
   sentGroupMessages GroupMessage[]
+
+  // Add these friendship relations
+  sentFriendRequests     Friendship[] @relation("User1Friendships")
+  receivedFriendRequests Friendship[] @relation("User2Friendships")
 }
 
 model UserVerification {
@@ -89,4 +93,29 @@ model GroupMessage {
 
   group  Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   sender User  @relation(fields: [senderId], references: [id])
+}
+
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  user1Id   Int
+  user2Id   Int
+  status    FriendshipStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user1 User @relation("User1Friendships", fields: [user1Id], references: [id])
+  user2 User @relation("User2Friendships", fields: [user2Id], references: [id])
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
+  @@index([status])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
 }

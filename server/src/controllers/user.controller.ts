@@ -9,18 +9,30 @@ export const getUsers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const currentUserId = (req as any).user?.id; // Ensure your auth middleware sets this
-    console.log(currentUserId, "HIIIIIIIIIIIII");
-    
+    const currentUserId = (req as any).user?.id;
 
-    const users = await prisma.user.findMany({
+    // Only get users who are friends (accepted friendships)
+    const friendships = await prisma.friendship.findMany({
       where: {
-        id: { not: currentUserId }, // Exclude the logged-in user
+        OR: [
+          { user1Id: currentUserId, status: "ACCEPTED" },
+          { user2Id: currentUserId, status: "ACCEPTED" }
+        ]
       },
-      select: { id: true, username: true, email: true },
+      include: {
+        user1: { select: { id: true, username: true, email: true } },
+        user2: { select: { id: true, username: true, email: true } }
+      }
     });
 
-    res.status(200).json(users);
+    // Map to get only the friends (not the current user)
+    const friends = friendships.map(friendship => {
+      return friendship.user1Id === currentUserId 
+        ? friendship.user2 
+        : friendship.user1;
+    });
+
+    res.status(200).json(friends);
   } catch (error) {
     console.error("Error fetching users:", error);
     res.status(500).json({ error: "Internal Server Error" });

@@ -7,6 +7,7 @@ import emailRoutes from "./routes/email.route.js";
 import userRoutes from "./routes/user.route.js";
 import messageRoutes from "./routes/message.route.js";
 import groupRoutes from "./routes/group.route.js";
+import friendRoutes from "./routes/friend.route.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
@@ -21,7 +22,7 @@ const port = process.env.PORT;
 
 const corsOptions = {
   origin: "http://localhost:3000", // Replace with your Next.js frontend URL
-  methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   credentials: true, // Allow cookies if needed
 };
 
@@ -145,3 +146,4 @@ app.use("/api/email", emailRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/message", messageRoutes);
 app.use("/api/group", groupRoutes);
+app.use("/api/friend", friendRoutes);
