@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { UserPlus, UserCheck, UserX, Users, Search, X } from "lucide-react";
 import useAuthStore from "@/store/authStore";
 import axios from "axios";
+import { io, Socket } from "socket.io-client";
 
 interface User {
   id: number;
@@ -19,6 +20,14 @@ interface FriendRequest {
   createdAt: string;
 }
 
+interface FriendRequestNotification {
+  requestId: number;
+  sender: User;
+  receiver: User;
+  status: string;
+  createdAt: string;
+}
+
 export default function FriendRequestsPage() {
   const [activeTab, setActiveTab] = useState<"suggestions" | "received" | "sent">("suggestions");
   const [suggestions, setSuggestions] = useState<User[]>([]);
@@ -28,6 +37,98 @@ export default function FriendRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const { email } = useAuthStore();
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
+  const socketRef = useRef<Socket | null>(null);
+
+  // Socket event handlers
+  const handleFriendRequestReceived = useCallback((data: FriendRequestNotification) => {
+    // Add to received requests
+    setReceivedRequests(prev => [{
+      id: data.requestId,
+      user1: data.sender,
+      user2: data.receiver,
+      status: "PENDING" as const,
+      createdAt: data.createdAt
+    }, ...prev]);
+
+    // Remove from suggestions if present
+    setSuggestions(prev => prev.filter(user => user.id !== data.sender.id));
+
+    // Show notification (optional)
+    console.log(`New friend request from ${data.sender.username}`);
+  }, []);
+
+  const handleFriendRequestAccepted = useCallback((data: any) => {
+    // Remove from sent requests
+    setSentRequests(prev => prev.filter(req => req.id !== data.requestId));
+    
+    // Show success notification (optional)
+    console.log(`${data.acceptedBy.username} accepted your friend request`);
+  }, []);
+
+  const handleFriendRequestRejected = useCallback((data: any) => {
+    // Remove from sent requests
+    setSentRequests(prev => prev.filter(req => req.id !== data.requestId));
+    
+    // Add back to suggestions if needed
+    fetchAllData();
+    
+    // Show notification (optional)
+    console.log(`Your friend request was declined`);
+  }, []);
+
+  const handleFriendRequestCancelled = useCallback((data: any) => {
+    // Remove from received requests
+    setReceivedRequests(prev => prev.filter(req => req.id !== data.requestId));
+    
+    // Add back to suggestions
+    setSuggestions(prev => [...prev, data.cancelledBy]);
+  }, []);
+
+  // Setup socket connection
+  const setupSocket = useCallback(() => {
+    if (!socketRef.current && email) {
+      socketRef.current = io("http://localhost:8000", {
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+      });
+
+      socketRef.current.on("connect", () => {
+        console.log("Connected to socket server for friend requests");
+        
+        // Join user-specific room
+        socketRef.current?.emit("user-online", email);
+      });
+
+      // Set up friend request event listeners
+      socketRef.current.on("friend-request-received", handleFriendRequestReceived);
+      socketRef.current.on("friend-request-was-accepted", handleFriendRequestAccepted);
+      socketRef.current.on("friend-request-was-rejected", handleFriendRequestRejected);
+      socketRef.current.on("friend-request-was-cancelled", handleFriendRequestCancelled);
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off("friend-request-received", handleFriendRequestReceived);
+        socketRef.current.off("friend-request-was-accepted", handleFriendRequestAccepted);
+        socketRef.current.off("friend-request-was-rejected", handleFriendRequestRejected);
+        socketRef.current.off("friend-request-was-cancelled", handleFriendRequestCancelled);
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, [
+    email,
+    handleFriendRequestReceived,
+    handleFriendRequestAccepted,
+    handleFriendRequestRejected,
+    handleFriendRequestCancelled
+  ]);
+
+  useEffect(() => {
+    const cleanup = setupSocket();
+    return cleanup;
+  }, [setupSocket]);
 
   useEffect(() => {
     fetchAllData();
@@ -54,55 +155,122 @@ export default function FriendRequestsPage() {
 
   const sendFriendRequest = async (receiverId: number) => {
     try {
-      await axios.post(
+      const response = await axios.post(
         `${rootUrl}/friend/request`,
         { receiverId },
         { withCredentials: true }
       );
       
-      // Move user from suggestions to sent requests
-      setSuggestions(prev => prev.filter(user => user.id !== receiverId));
-      fetchAllData(); // Refresh to get updated sent requests
+      // Find the user to move to sent requests
+      const userToMove = suggestions.find(user => user.id === receiverId);
+      
+      if (userToMove) {
+        // Move user from suggestions to sent requests optimistically
+        setSuggestions(prev => prev.filter(user => user.id !== receiverId));
+        setSentRequests(prev => [{
+          id: response.data.id,
+          user1: response.data.user1,
+          user2: response.data.user2,
+          status: "PENDING" as const,
+          createdAt: response.data.createdAt
+        }, ...prev]);
+
+        // Emit socket event for real-time update
+        if (socketRef.current) {
+          socketRef.current.emit("friend-request-sent", {
+            requestId: response.data.id,
+            sender: response.data.user1,
+            receiver: response.data.user2,
+            receiverEmail: userToMove.email,
+            status: "PENDING",
+            createdAt: response.data.createdAt
+          });
+        }
+      }
     } catch (error) {
       console.error("Error sending friend request:", error);
+      // Revert optimistic update on error
+      fetchAllData();
     }
   };
 
- const handleRequest = async (requestId: number, action: "accept" | "reject") => {
-  try {
-    await axios.patch(
-      `${rootUrl}/friend/request/${requestId}`,
-      { action },
-      { withCredentials: true }
-    );
-    
-    // Remove from received requests regardless of action
-    setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-    
-    // If rejected, refresh suggestions to potentially show the user again
-    if (action === "reject") {
-      const suggestionsRes = await axios.get(`${rootUrl}/friend/suggestions`, { 
-        withCredentials: true 
-      });
-      setSuggestions(suggestionsRes.data);
+  const handleRequest = async (requestId: number, action: "accept" | "reject") => {
+    try {
+      const requestToHandle = receivedRequests.find(req => req.id === requestId);
+      
+      if (!requestToHandle) return;
+
+      await axios.patch(
+        `${rootUrl}/friend/request/${requestId}`,
+        { action },
+        { withCredentials: true }
+      );
+      
+      // Remove from received requests optimistically
+      setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+      
+      // Emit socket event
+      if (socketRef.current) {
+        if (action === "accept") {
+          socketRef.current.emit("friend-request-accepted", {
+            requestId,
+            senderEmail: requestToHandle.user1.email,
+            acceptedBy: requestToHandle.user2,
+            newFriend: requestToHandle.user2
+          });
+        } else {
+          socketRef.current.emit("friend-request-rejected", {
+            requestId,
+            senderEmail: requestToHandle.user1.email,
+            rejectedBy: requestToHandle.user2
+          });
+        }
+      }
+      
+      // If rejected, refresh suggestions to potentially show the user again
+      if (action === "reject") {
+        const suggestionsRes = await axios.get(`${rootUrl}/friend/suggestions`, { 
+          withCredentials: true 
+        });
+        setSuggestions(suggestionsRes.data);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing friend request:`, error);
+      // Revert optimistic update on error
+      fetchAllData();
     }
-  } catch (error) {
-    console.error(`Error ${action}ing friend request:`, error);
-  }
-};
+  };
 
   const cancelRequest = async (requestId: number) => {
     try {
+      const requestToCancel = sentRequests.find(req => req.id === requestId);
+      
+      if (!requestToCancel) return;
+
       await axios.patch(
         `${rootUrl}/friend/request/${requestId}`,
         { action: "reject" },
         { withCredentials: true }
       );
       
+      // Remove from sent requests optimistically
       setSentRequests(prev => prev.filter(req => req.id !== requestId));
-      fetchAllData(); // Refresh suggestions as user might appear there again
+      
+      // Emit socket event
+      if (socketRef.current) {
+        socketRef.current.emit("friend-request-cancelled", {
+          requestId,
+          receiverEmail: requestToCancel.user2.email,
+          cancelledBy: requestToCancel.user1
+        });
+      }
+      
+      // Refresh suggestions as user might appear there again
+      fetchAllData();
     } catch (error) {
       console.error("Error canceling request:", error);
+      // Revert optimistic update on error
+      fetchAllData();
     }
   };
 

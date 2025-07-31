@@ -190,6 +190,25 @@ export default function ChatPage() {
     [selectedGroup]
   );
 
+  const fetchUsersAndGroups = useCallback(async () => {
+    try {
+      // Fetch both simultaneously
+      const [usersResponse, groupsResponse] = await Promise.all([
+        axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
+        axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
+      ]);
+
+      // Set both states together
+      setUsers(usersResponse.data);
+      setGroups(groupsResponse.data);
+    } catch (error) {
+      console.error("Error fetching users and groups:", error);
+      // Set empty arrays on error to prevent undefined states
+      setUsers([]);
+      setGroups([]);
+    }
+  }, [rootUrl]);
+
   // Socket connection with improved handling for hot reloading
   const setupSocket = useCallback(() => {
     if (!socketRef.current) {
@@ -201,6 +220,11 @@ export default function ChatPage() {
 
       socketRef.current.on("connect", () => {
         console.log("Connected to socket server:", socketRef.current?.id);
+
+        // NEW: Emit user-online event for friend requests
+        if (email) {
+          socketRef.current?.emit("user-online", email);
+        }
 
         // If there's a selected user, join their room immediately
         if (selectedUser && email) {
@@ -216,10 +240,23 @@ export default function ChatPage() {
         }
       });
 
-      // Set up event listeners
+      // Set up existing event listeners
       socketRef.current.on("receive-message", handleReceiveMessage);
       socketRef.current.on("new-group-added", handleNewGroupAdded);
       socketRef.current.on("receive-group-message", handleReceiveGroupMessage);
+
+      // NEW: Add friend request event listeners to chat component (optional)
+      // This allows the chat component to react to friend request events
+      socketRef.current.on("friend-request-received", (data: any) => {
+        console.log("New friend request received in chat:", data);
+        // You could show a toast notification here
+      });
+
+      socketRef.current.on("friend-request-was-accepted", (data: any) => {
+        console.log("Friend request accepted in chat:", data);
+        // Refresh the users list to include the new friend
+        fetchUsersAndGroups();
+      });
     }
 
     return () => {
@@ -230,6 +267,8 @@ export default function ChatPage() {
           "receive-group-message",
           handleReceiveGroupMessage
         );
+        socketRef.current.off("friend-request-received");
+        socketRef.current.off("friend-request-was-accepted");
         socketRef.current.disconnect();
         socketRef.current = null;
       }
@@ -241,6 +280,7 @@ export default function ChatPage() {
     handleReceiveMessage,
     handleNewGroupAdded,
     handleReceiveGroupMessage,
+    fetchUsersAndGroups, // Add this dependency
   ]);
 
   useEffect(() => {
@@ -274,26 +314,6 @@ export default function ChatPage() {
   useEffect(() => {
     setCombinedChats(combineAndSortChats(users, groups));
   }, [users, groups, combineAndSortChats]);
-
-  // Replace the separate fetchUsers and fetchGroups useEffect hooks with this:
-  const fetchUsersAndGroups = useCallback(async () => {
-    try {
-      // Fetch both simultaneously
-      const [usersResponse, groupsResponse] = await Promise.all([
-        axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
-        axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
-      ]);
-
-      // Set both states together
-      setUsers(usersResponse.data);
-      setGroups(groupsResponse.data);
-    } catch (error) {
-      console.error("Error fetching users and groups:", error);
-      // Set empty arrays on error to prevent undefined states
-      setUsers([]);
-      setGroups([]);
-    }
-  }, [rootUrl]);
 
   useEffect(() => {
     fetchUsersAndGroups();
