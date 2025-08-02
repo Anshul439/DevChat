@@ -241,38 +241,40 @@ export default function FriendRequestsPage() {
     }
   };
 
-  const cancelRequest = async (requestId: number) => {
-    try {
-      const requestToCancel = sentRequests.find(req => req.id === requestId);
-      
-      if (!requestToCancel) return;
+const cancelRequest = async (requestId: number) => {
+  try {
+    const requestToCancel = sentRequests.find(req => req.id === requestId);
+    
+    if (!requestToCancel) return;
 
-      await axios.patch(
-        `${rootUrl}/friend/request/${requestId}`,
-        { action: "reject" },
-        { withCredentials: true }
-      );
-      
-      // Remove from sent requests optimistically
-      setSentRequests(prev => prev.filter(req => req.id !== requestId));
-      
-      // Emit socket event
-      if (socketRef.current) {
-        socketRef.current.emit("friend-request-cancelled", {
-          requestId,
-          receiverEmail: requestToCancel.user2.email,
-          cancelledBy: requestToCancel.user1
-        });
-      }
-      
-      // Refresh suggestions as user might appear there again
-      fetchAllData();
-    } catch (error) {
-      console.error("Error canceling request:", error);
-      // Revert optimistic update on error
-      fetchAllData();
+    await axios.delete(
+      `${rootUrl}/friend/request/${requestId}`,
+      { withCredentials: true }
+    );
+    
+    // Remove from sent requests optimistically
+    setSentRequests(prev => prev.filter(req => req.id !== requestId));
+    
+    // Emit socket event for real-time update
+    if (socketRef.current) {
+      socketRef.current.emit("friend-request-cancelled", {
+        requestId,
+        receiverEmail: requestToCancel.user2.email,
+        cancelledBy: requestToCancel.user1
+      });
     }
-  };
+    
+    // Refresh suggestions as user might appear there again
+    const suggestionsRes = await axios.get(`${rootUrl}/friend/suggestions`, { 
+      withCredentials: true 
+    });
+    setSuggestions(suggestionsRes.data);
+  } catch (error) {
+    console.error("Error canceling request:", error);
+    // Revert optimistic update on error
+    fetchAllData();
+  }
+};
 
   const getInitials = (name: string) => {
     return name.split(" ").map(part => part[0]).join("").toUpperCase();

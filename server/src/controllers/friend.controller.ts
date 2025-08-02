@@ -151,6 +151,49 @@ export const updateFriendRequest = async (
   }
 };
 
+// Add this new function to your friend controller
+export const cancelFriendRequest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const currentUserId = (req as any).user?.id;
+    const { requestId } = req.params;
+
+    // Find the friend request that the current user sent
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        id: parseInt(requestId),
+        user1Id: currentUserId, // Only the sender can cancel
+        status: "PENDING"
+      },
+      include: {
+        user1: { select: { id: true, username: true, email: true } },
+        user2: { select: { id: true, username: true, email: true } }
+      }
+    });
+
+    if (!friendship) {
+      res.status(404).json({ error: "Friend request not found or you don't have permission to cancel it" });
+      return;
+    }
+
+    // Delete the friend request
+    await prisma.friendship.delete({
+      where: { id: parseInt(requestId) }
+    });
+
+    res.status(200).json({ 
+      message: "Friend request cancelled successfully",
+      friendship 
+    });
+  } catch (error) {
+    console.error("Error cancelling friend request:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 export const getFriends = async (
   req: Request,
   res: Response,
