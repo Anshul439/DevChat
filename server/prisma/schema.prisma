@@ -13,6 +13,8 @@ model User {
   username   String   @unique
   fullName   String
   password   String?
+  bio        String?
+  profilePic String?
   isVerified Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -95,14 +97,13 @@ model GroupMessage {
   sender User  @relation(fields: [senderId], references: [id])
 }
 
-
 model Friendship {
-  id        Int      @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   user1Id   Int
   user2Id   Int
   status    FriendshipStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   user1 User @relation("User1Friendships", fields: [user1Id], references: [id])
   user2 User @relation("User2Friendships", fields: [user2Id], references: [id])
