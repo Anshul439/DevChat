@@ -205,27 +205,34 @@ const handleRequest = async (requestId: number, action: "accept" | "reject") => 
     if (!requestToHandle) return;
 
     // Optimistically update UI immediately
-    if (action === "reject") {
-      setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-    }
+    setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
 
     // Make API call
-    await axios.patch(
+    const response = await axios.patch(
       `${rootUrl}/friend/request/${requestId}`,
       { action },
       { withCredentials: true }
     );
 
-    // Emit socket event only if needed
-    if (socketRef.current && action === "reject") {
-      socketRef.current.emit("friend-request-rejected", {
-        requestId,
-        senderEmail: requestToHandle.user1.email,
-        rejectedBy: requestToHandle.user2
-      });
+    // Emit socket event based on action
+    if (socketRef.current) {
+      if (action === "accept") {
+        socketRef.current.emit("friend-request-accepted", {
+          requestId,
+          senderEmail: requestToHandle.user1.email,
+          acceptedBy: requestToHandle.user2
+        });
+      } else {
+        socketRef.current.emit("friend-request-rejected", {
+          requestId,
+          senderEmail: requestToHandle.user1.email,
+          rejectedBy: requestToHandle.user2
+        });
+      }
     }
 
-    // No need to update suggestions here - let the socket handle it if needed
+    // For accept, we might want to add to friends list (if you have one)
+    // Or you can let the socket event from the backend handle this
   } catch (error) {
     console.error(`Error ${action}ing friend request:`, error);
     // Revert optimistic update on error
