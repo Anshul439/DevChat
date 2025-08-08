@@ -65,16 +65,20 @@ export default function FriendRequestsPage() {
     console.log(`${data.acceptedBy.username} accepted your friend request`);
   }, []);
 
-  const handleFriendRequestRejected = useCallback((data: any) => {
-    // Remove from sent requests
-    setSentRequests(prev => prev.filter(req => req.id !== data.requestId));
-    
-    // Add back to suggestions if needed
-    fetchAllData();
-    
-    // Show notification (optional)
-    console.log(`Your friend request was declined`);
-  }, []);
+ // Update the handleFriendRequestRejected callback
+const handleFriendRequestRejected = useCallback((data: any) => {
+  // Remove from sent requests
+  setSentRequests(prev => prev.filter(req => req.id !== data.requestId));
+  
+  // Add the rejected user back to suggestions if they meet criteria
+  setSuggestions(prev => {
+    // Check if user already exists in suggestions to avoid duplicates
+    const userExists = prev.some(user => user.id === data.rejectedBy.id);
+    return userExists ? prev : [...prev, data.rejectedBy];
+  });
+  
+  console.log(`Your friend request was declined by ${data.rejectedBy.username}`);
+}, []);
 
   const handleFriendRequestCancelled = useCallback((data: any) => {
     // Remove from received requests
@@ -194,52 +198,40 @@ export default function FriendRequestsPage() {
     }
   };
 
-  const handleRequest = async (requestId: number, action: "accept" | "reject") => {
-    try {
-      const requestToHandle = receivedRequests.find(req => req.id === requestId);
-      
-      if (!requestToHandle) return;
+const handleRequest = async (requestId: number, action: "accept" | "reject") => {
+  try {
+    // Get the request before modifying state
+    const requestToHandle = receivedRequests.find(req => req.id === requestId);
+    if (!requestToHandle) return;
 
-      await axios.patch(
-        `${rootUrl}/friend/request/${requestId}`,
-        { action },
-        { withCredentials: true }
-      );
-      
-      // Remove from received requests optimistically
+    // Optimistically update UI immediately
+    if (action === "reject") {
       setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
-      
-      // Emit socket event
-      if (socketRef.current) {
-        if (action === "accept") {
-          socketRef.current.emit("friend-request-accepted", {
-            requestId,
-            senderEmail: requestToHandle.user1.email,
-            acceptedBy: requestToHandle.user2,
-            newFriend: requestToHandle.user2
-          });
-        } else {
-          socketRef.current.emit("friend-request-rejected", {
-            requestId,
-            senderEmail: requestToHandle.user1.email,
-            rejectedBy: requestToHandle.user2
-          });
-        }
-      }
-      
-      // If rejected, refresh suggestions to potentially show the user again
-      if (action === "reject") {
-        const suggestionsRes = await axios.get(`${rootUrl}/friend/suggestions`, { 
-          withCredentials: true 
-        });
-        setSuggestions(suggestionsRes.data);
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing friend request:`, error);
-      // Revert optimistic update on error
-      fetchAllData();
     }
-  };
+
+    // Make API call
+    await axios.patch(
+      `${rootUrl}/friend/request/${requestId}`,
+      { action },
+      { withCredentials: true }
+    );
+
+    // Emit socket event only if needed
+    if (socketRef.current && action === "reject") {
+      socketRef.current.emit("friend-request-rejected", {
+        requestId,
+        senderEmail: requestToHandle.user1.email,
+        rejectedBy: requestToHandle.user2
+      });
+    }
+
+    // No need to update suggestions here - let the socket handle it if needed
+  } catch (error) {
+    console.error(`Error ${action}ing friend request:`, error);
+    // Revert optimistic update on error
+    fetchAllData();
+  }
+};
 
 const cancelRequest = async (requestId: number) => {
   try {
