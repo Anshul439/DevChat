@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { setupProfile, skipProfileSetup, getProfile } from "../controllers/profile.controller";
+import { setupProfile, skipProfileSetup, getProfile, updateProfile } from "../controllers/profile.controller";
 import { profilePictureUpload, handleMulterError } from "../middlewares/multerConfig";
 import authenticateToken from "../middlewares/authenticateToken";
 
@@ -20,6 +20,12 @@ router.post(
 router.post("/skip", skipProfileSetup);
 
 // Get current user profile
-router.get("/me", getProfile);
+router.get("/", getProfile);
+router.patch(
+  "/",
+  profilePictureUpload.single("profilePic"), // Match the field name used in frontend
+  handleMulterError,
+  updateProfile
+);
 
 export default router;

@@ -130,6 +130,7 @@ export const skipProfileSetup = async (
   }
 };
 
+
 export const getProfile = async (
   req: Request,
   res: Response,
@@ -170,5 +171,91 @@ export const getProfile = async (
   } catch (error) {
     console.error("Get profile error:", error);
     res.status(500).json({ error: "An error occurred while retrieving profile" });
+  }
+};
+
+export const updateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ error: "User not authenticated" });
+      return;
+    }
+
+    const { username, fullName, bio } = req.body;
+    let profilePicUrl: string | undefined;
+
+    // Handle profile picture upload if file exists
+    if (req.file) {
+      try {
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: "devChat/profiles",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+            { quality: "auto", fetch_format: "auto" }
+          ],
+          public_id: `profile_${userId}_${Date.now()}`
+        });
+        
+        profilePicUrl = result.secure_url;
+      } catch (cloudinaryError) {
+        console.error("Cloudinary upload error:", cloudinaryError);
+        res.status(500).json({ error: "Failed to upload profile picture" });
+        return;
+      }
+    }
+
+    // Check if username is already taken by another user
+    if (username) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username,
+          NOT: {
+            id: userId
+          }
+        }
+      });
+
+      if (existingUser) {
+        res.status(400).json({ error: "Username already taken" });
+        return;
+      }
+    }
+
+    // Update user profile in database
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        username,
+        fullName,
+        bio,
+        ...(profilePicUrl && { profilePic: profilePicUrl }),
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        fullName: true,
+        bio: true,
+        profilePic: true,
+        isVerified: true,
+        createdAt: true,
+      }
+    });
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ error: "An error occurred while updating profile" });
   }
 };
