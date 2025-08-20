@@ -11,136 +11,54 @@ export default function ChatLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { accessToken, setAccessToken, setEmail, clearTokens } = useAuthStore();
+  const { accessToken, setAccessToken, clearTokens } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [isValidating, setIsValidating] = useState(false);
 
   const navigateToChat = () => router.push("/chat");
   const navigateToFriendRequests = () => router.push("/friend-requests");
   const navigateToProfile = () => router.push("/profile");
 
   useEffect(() => {
-    const validateToken = async () => {
-      // Prevent multiple validation attempts
-      if (isValidating) return;
-      
-      setIsValidating(true);
-      setIsLoading(true);
-
-      try {
-        // First, try to refresh token if no access token exists
-        if (!accessToken) {
-          console.log('No access token found, attempting refresh...');
-          try {
-            const refreshResponse = await axios.post(
-              `${process.env.NEXT_PUBLIC_ROOT_URL}/auth/refresh`,
-              {},
-              { withCredentials: true }
-            );
-            
-            if (refreshResponse.data.accessToken) {
-              console.log('Token refreshed successfully');
-              setAccessToken(refreshResponse.data.accessToken);
-              setIsLoading(false);
-              setIsValidating(false);
-              return;
-            }
-          } catch (refreshError) {
-            console.log('Token refresh failed, redirecting to signin');
-            clearTokens();
-            router.push('/signin');
-            setIsValidating(false);
-            return;
+    const checkAccess = async () => {
+      if (!accessToken) {
+        // No token → try refresh
+        try {
+          const refreshResponse = await axios.post(
+            `${process.env.NEXT_PUBLIC_ROOT_URL}/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
+          if (refreshResponse.data.accessToken) {
+            setAccessToken(refreshResponse.data.accessToken);
+          } else {
+            throw new Error("No access token in response");
           }
+        } catch (error) {
+          console.log("Token refresh failed, redirecting to signin");
+          clearTokens();
+          router.push("/signin");
+          return;
         }
-
-        // If we have an access token, validate it
-        if (accessToken) {
-          try {
-            const response = await axios.get(
-              `${process.env.NEXT_PUBLIC_ROOT_URL}/auth/validate-token`,
-              {
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
-                withCredentials: true,
-              }
-            );
-
-            if (response.status === 200) {
-              console.log('Token validated successfully');
-              setIsLoading(false);
-              setIsValidating(false);
-              return;
-            }
-          } catch (validationError: any) {
-            console.log('Token validation failed, attempting refresh...');
-            
-            // Token validation failed, try to refresh
-            if (validationError.response?.status === 401) {
-              try {
-                const refreshResponse = await axios.post(
-                  `${process.env.NEXT_PUBLIC_ROOT_URL}/auth/refresh`,
-                  {},
-                  { withCredentials: true }
-                );
-                
-                if (refreshResponse.data.accessToken) {
-                  console.log('Token refreshed after validation failure');
-                  setAccessToken(refreshResponse.data.accessToken);
-                  setIsLoading(false);
-                  setIsValidating(false);
-                  return;
-                }
-              } catch (refreshError) {
-                console.log('Token refresh failed after validation failure');
-              }
-            }
-            
-            // If all fails, clear tokens and redirect
-            clearTokens();
-            router.push('/signin');
-            setIsValidating(false);
-            return;
-          }
-        }
-
-        // If we reach here without a token, redirect to signin
-        clearTokens();
-        router.push('/signin');
-        setIsValidating(false);
-
-      } catch (error) {
-        console.error('Unexpected error during token validation:', error);
-        clearTokens();
-        router.push('/signin');
-        setIsValidating(false);
       }
+      
+      setIsLoading(false);
     };
 
-    validateToken();
-  }, []); // Remove accessToken from dependencies to prevent infinite loops
-
-  // Separate effect to handle accessToken changes
-  useEffect(() => {
-    if (accessToken && !isLoading && !isValidating) {
-      // Token was updated, validation already happened
-      return;
-    }
-  }, [accessToken, isLoading, isValidating]);
+    checkAccess();
+  }, []);
 
   const handleLogout = async () => {
+    setIsLoading(true);
     try {
       await axios.post(
         `${process.env.NEXT_PUBLIC_ROOT_URL}/auth/logout`,
         {},
         { withCredentials: true }
       );
-      clearTokens();
-      router.push("/signin");
     } catch (error) {
       console.error("Logout error:", error);
-      // Even if logout fails on server, clear local tokens
+    } finally {
+      // Always clear tokens and redirect, even if API call fails
       clearTokens();
       router.push("/signin");
     }
