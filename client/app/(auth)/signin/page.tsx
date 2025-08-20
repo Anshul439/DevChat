@@ -29,13 +29,11 @@ export default function Signin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string>("");
 
-  const { setToken } = useAuthStore();
+  const { setAccessToken, setEmail } = useAuthStore();
   const { toast } = useToast();
   const router = useRouter();
 
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
-
-  const setEmail = useAuthStore((state) => state.setEmail);
 
   const form = useForm<z.infer<typeof SignInSchema>>({
     resolver: zodResolver(SignInSchema),
@@ -47,17 +45,17 @@ export default function Signin() {
 
   const onSubmit = async (data: z.infer<typeof SignInSchema>) => {
     setIsSubmitting(true);
-    setAuthError(""); // Clear previous errors
+    setAuthError("");
     try {
       const response = await axios.post<ApiResponse>(
         `${rootUrl}/auth/signin`,
         data,
         { withCredentials: true }
       );
-      console.log(response);
       
+      // Update to use accessToken instead of token
       setEmail(response.data.user.email);
-      setToken(response.data.token);
+      setAccessToken(response.data.accessToken); // Changed from token to accessToken
 
       toast({
         title: "Success",

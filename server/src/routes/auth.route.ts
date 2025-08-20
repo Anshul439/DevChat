@@ -5,6 +5,7 @@ import {
   githubOauth,
   googleOauth,
   logout,
+  refreshToken,
   signin,
   signup,
 } from "../controllers/auth.controller";
@@ -16,8 +17,8 @@ router.post("/signup", signup);
 router.post("/signin", signin);
 router.post("/logout", logout);
 
+router.post("/refresh", refreshToken);
 
-// Step 2: Handle GitHub OAuth callback
 router.post("/github", githubOauth);
 router.post("/google", googleOauth);
 

@@ -9,7 +9,7 @@ import { ApiResponse } from "@/types/ApiResponse";
 
 const Navbar = () => {
   const router = useRouter();
-  const { email, setToken, setEmail } = useAuthStore(); // Get email and logout functions
+  const { email, setAccessToken, setEmail } = useAuthStore(); // Get email and logout functions
   console.log(email);
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
@@ -20,7 +20,7 @@ const Navbar = () => {
     });
     console.log(response);
 
-    setToken(""); // Clear the token
+    setAccessToken(""); // Clear the token
     setEmail(""); // Clear the email
     router.push("/signin"); // Redirect to the sign-in page
   };

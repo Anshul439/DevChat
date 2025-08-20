@@ -13,11 +13,15 @@ import {
 import { formatZodError } from "../utils/formatZodError";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET!;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "15m";
+const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || "7d";
 
-const options = {
+const cookieOptions = {
   httpOnly: true,
-  // secure: true
+  // secure: true, // uncomment in production
+  sameSite: "strict" as const,
 };
 
 export const signup = async (
@@ -60,25 +64,43 @@ export const signup = async (
         verifyCode,
         verifyCodeExpiry,
         user: {
-          connect: { id: user.id }, // Connect the existing user
+          connect: { id: user.id },
         },
       },
     });
-    
 
     await sendVerificationEmail(email, username, verifyCode);
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-      // expiresIn: "1h",
+    // Generate access and refresh tokens
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_ACCESS_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+
+    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
-    // console.log(token);
+
+    // Store refresh token in database
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        userId: user.id,
+      },
+    });
 
     res
       .status(201)
-      .cookie("authToken", token, options)
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        path: "/api/auth/refresh",
+      })
       .json({
         message: "User created successfully",
-        token,
+        accessToken,
         user: {
           id: user.id,
           email: user.email,
@@ -110,7 +132,6 @@ export const signin = async (
     const user = await prisma.user.findUnique({
       where: { email },
     });
-    // console.log(email);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -122,16 +143,40 @@ export const signin = async (
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-      // expiresIn: "1h",
+    // Generate access and refresh tokens
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_ACCESS_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+
+    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY,
+    });
+
+    // Remove old refresh tokens and store new one
+    await prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        userId: user.id,
+      },
     });
 
     res
       .status(200)
-      .cookie("authToken", token, options)
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        path: "/api/auth/refresh",
+      })
       .json({
         message: "Sign in successful",
-        token,
+        accessToken,
         user: { id: user.id, username: user.username, email: user.email },
       });
   } catch (error) {
@@ -163,12 +208,12 @@ export const githubOauth = async (
       }
     );
 
-    const accessToken = tokenResponse.data.access_token;
+    const githubAccessToken = tokenResponse.data.access_token;
 
     // Get user data from GitHub
     const userResponse = await axios.get("https://api.github.com/user", {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${githubAccessToken}`, // Use GitHub access token
       },
     });
 
@@ -180,7 +225,7 @@ export const githubOauth = async (
       "https://api.github.com/user/emails",
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${githubAccessToken}`, // Use GitHub access token
         },
       }
     );
@@ -191,46 +236,64 @@ export const githubOauth = async (
         email.primary && email.verified
     )?.email;
 
-    const existingUser = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: {
         OR: [{ email: primaryEmail }, { username: userData.login }],
       },
     });
 
-    if (!existingUser) {
-      await prisma.user.create({
+    if (!user) {
+      user = await prisma.user.create({
         data: {
           email: primaryEmail,
-          fullName: userData.name,
+          fullName: userData.name || userData.login, // Fallback to login if name is null
           username: userData.login,
           password: null,
-          // verifyCode: null,
-          // verifyCodeExpiry: null,
+          isVerified: true, // GitHub users are considered verified
         },
       });
-
-      await prisma.user.update({
-        where: { email: primaryEmail },
-        data: { isVerified: true },
-      });
     }
-    // Create JWT token
-    const token = jwt.sign(
-      {
-        id: existingUser.id,
-        email: existingUser.email || null, // Use the fetched primary email, or null if not available
-        fullName: existingUser.fullName,
-        username: existingUser.username,
-      },
-      JWT_SECRET
-      // { expiresIn: "1h" }
+
+    // Now create JWT tokens using the user data
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_ACCESS_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY }
     );
 
-    res.cookie("authToken", token, { httpOnly: true }).json({
-      success: true,
-      token,
-      user: { ...userData, email: primaryEmail }, // Include the email in the response
+    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
+
+    // Remove old refresh tokens and store new one
+    await prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        userId: user.id,
+      },
+    });
+
+    res
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        path: "/api/auth/refresh",
+      })
+      .json({
+        success: true,
+        accessToken,
+        user: { 
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName
+        },
+      });
   } catch (error) {
     console.error("GitHub OAuth Error:", error);
     res.status(500).json({
@@ -246,7 +309,6 @@ export const googleOauth = async (
   next: NextFunction
 ): Promise<void> => {
   const code = req.body.code as string;
-  // console.log(req.body.code);
 
   if (!code) {
     return res.status(400).json({ error: "Authorization code not provided!" });
@@ -265,10 +327,8 @@ export const googleOauth = async (
       },
       { headers: { "Content-Type": "application/json" } }
     );
-    // console.log(tokenResponse);
 
     const { id_token } = tokenResponse.data;
-    console.log(id_token, "HIIIIIIIIIIIIIIIIIIII");
 
     // Decode the ID token to extract user info
     const userInfo = jwt.decode(id_token) as {
@@ -303,15 +363,45 @@ export const googleOauth = async (
     }
 
     // Generate a JWT token for the authenticated user
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
-      // expiresIn: "1h",
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      JWT_ACCESS_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+
+    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
 
-    res.cookie("authToken", token, { httpOnly: true }).json({
-      success: true,
-      token,
-      user: { email: userInfo.email, username: userInfo.email.split("@")[0] }, // Include the email in the response
+    // Remove old refresh tokens and store new one
+    await prisma.refreshToken.deleteMany({
+      where: { userId: user.id },
     });
+
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        userId: user.id,
+      },
+    });
+
+    res
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        path: "/api/auth/refresh",
+      })
+      .json({
+        success: true,
+        accessToken,
+        user: { 
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName
+        },
+      });
   } catch (error) {
     console.error("Error during Google OAuth:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -404,10 +494,72 @@ export const logout = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    res.clearCookie("authToken", options);
-    res.status(200).json({ message: "Sign out successful" });
+    const refreshToken = req.cookies.refreshToken;
+    
+    if (refreshToken) {
+      // Remove refresh token from database
+      await prisma.refreshToken.deleteMany({
+        where: { token: refreshToken },
+      });
+    }
+
+    res
+      .clearCookie("accessToken", cookieOptions)
+      .clearCookie("refreshToken", { ...cookieOptions, path: "/api/auth/refresh" })
+      .status(200)
+      .json({ message: "Sign out successful" });
   } catch (error) {
     console.error("Error during signout:", error);
     res.status(500).json({ error: "An error occurred during signout" });
+  }
+};
+
+export const refreshToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    res.status(401).json({ error: "Refresh token required" });
+    return;
+  }
+
+  try {
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as {
+      id: string;
+    };
+
+    // Check if refresh token exists in database
+    const storedToken = await prisma.refreshToken.findFirst({
+      where: {
+        token: refreshToken,
+        userId: decoded.id,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true },
+    });
+
+    if (!storedToken) {
+      res.status(401).json({ error: "Invalid refresh token" });
+      return;
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { id: decoded.id, email: storedToken.user.email },
+      JWT_ACCESS_SECRET,
+      { expiresIn: ACCESS_TOKEN_EXPIRY }
+    );
+
+    res.cookie("accessToken", newAccessToken, cookieOptions).json({
+      message: "Token refreshed successfully",
+      accessToken: newAccessToken,
+    });
+  } catch (error) {
+    res.status(401).json({ error: "Invalid refresh token" });
+    console.error(error);
   }
 };

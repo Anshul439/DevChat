@@ -10,10 +10,8 @@ const LoadingPage = () => {
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
   const state = searchParams.get("state");
-  console.log(state);
-  console.log(code);
 
-  const { setEmail, setToken } = useAuthStore();
+  const { setAccessToken, setEmail } = useAuthStore(); // Changed from setToken
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
 
   useEffect(() => {
@@ -32,19 +30,27 @@ const LoadingPage = () => {
         body: JSON.stringify({ code }),
         credentials: "include",
       });
-      console.log(response);
 
       const data = await response.json();
-      console.log(data);
+      console.log("OAuth response:", data);
 
-      setEmail(data.user.email);
-      setToken(data.token);
-
-      if (data.success || data.token) {
+      // FIX: Handle the new response structure
+      if (data.success && data.accessToken && data.user) {
+        setEmail(data.user.email);
+        setAccessToken(data.accessToken); // Changed from data.token
         router.push("/chat");
+      } else if (data.accessToken && data.user) {
+        // Handle case where success flag might not be present
+        setEmail(data.user.email);
+        setAccessToken(data.accessToken);
+        router.push("/chat");
+      } else {
+        console.error("Invalid OAuth response:", data);
+        router.push("/signin");
       }
     } catch (error) {
       console.error("Authentication error:", error);
+      router.push("/signin");
     }
   };
 
