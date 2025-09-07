@@ -347,10 +347,10 @@ export default function ChatPage() {
 
       setMessages(formattedMessages);
 
-      // Scroll to bottom after messages are set
+      // Immediately scroll to bottom after setting messages
       setTimeout(() => {
         scrollToBottom();
-      }, 100);
+      }, 0);
     } catch (error) {
       console.error("Error fetching messages:", error);
       setMessages([]);
@@ -366,18 +366,27 @@ export default function ChatPage() {
   }, [selectedUser, fetchMessages]);
 
   useEffect(() => {
-    // Only scroll on new messages, not when switching chats
-    if (
-      (messages.length > 0 && selectedUser) ||
-      (groupMessages.length > 0 && selectedGroup)
-    ) {
-      scrollToBottom();
+    // Scroll immediately when messages change and we have a selected chat
+    if (selectedUser || selectedGroup) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(() => {
+        scrollToBottom();
+      }, 0);
     }
-  }, [messages.length, groupMessages.length]); // Changed dependencies
+  }, [messages, groupMessages, selectedUser, selectedGroup]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" });
+      // Use scrollTop instead of scrollIntoView for immediate positioning
+      const scrollContainer = messagesEndRef.current.parentElement;
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      } else {
+        messagesEndRef.current.scrollIntoView({
+          behavior: "auto",
+          block: "end",
+        });
+      }
     }
   };
 
@@ -591,6 +600,11 @@ export default function ChatPage() {
     }
   };
 
+  const messagesContainerStyle = {
+    scrollBehavior: "auto" as const,
+    // This ensures immediate positioning without smooth scrolling
+  };
+
   const fetchGroupMessages = useCallback(
     async (groupId: number) => {
       setLoadingMessages(true);
@@ -608,10 +622,7 @@ export default function ChatPage() {
         }));
         setGroupMessages(formattedGroupMessages);
 
-        // Scroll to bottom after messages are set
-        setTimeout(() => {
-          scrollToBottom();
-        }, 100);
+        scrollToBottom();
       } catch (error) {
         console.error("Error fetching group messages:", error);
         setGroupMessages([]);
@@ -970,8 +981,16 @@ export default function ChatPage() {
             </div>
 
             {/* Group Messages Area */}
-            {/* Group Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div 
+  className="flex-1 overflow-y-auto p-4 space-y-3"
+  style={messagesContainerStyle}
+  ref={(el) => {
+    if (el && (groupMessages.length > 0 || loadingMessages)) {
+      // Immediately scroll to bottom when ref is set
+      el.scrollTop = el.scrollHeight;
+    }
+  }}
+>
               {loadingMessages ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="text-gray-500 dark:text-gray-400">
@@ -1066,7 +1085,16 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-3"
+              style={messagesContainerStyle}
+              ref={(el) => {
+                if (el && (messages.length > 0 || loadingMessages)) {
+                  // Immediately scroll to bottom when ref is set
+                  el.scrollTop = el.scrollHeight;
+                }
+              }}
+            >
               {loadingMessages ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="text-gray-500 dark:text-gray-400">
@@ -1093,7 +1121,6 @@ export default function ChatPage() {
                       </div>
                     </div>
                   ))}
-                  {/* This empty div will be scrolled into view */}
                   <div ref={messagesEndRef} />
                 </>
               )}
