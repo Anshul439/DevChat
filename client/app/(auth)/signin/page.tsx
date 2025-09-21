@@ -7,8 +7,9 @@ import { useToast } from "@/hooks/use-toast";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { SignInSchema } from "@/lib/utils";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { ApiResponse } from "@/types/ApiResponse";
+import api from "@/lib/axiosConfig"; // Use the configured axios instance
 import {
   Form,
   FormControl,
@@ -33,8 +34,6 @@ export default function Signin() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL;
-
   const form = useForm<z.infer<typeof SignInSchema>>({
     resolver: zodResolver(SignInSchema),
     defaultValues: {
@@ -47,15 +46,13 @@ export default function Signin() {
     setIsSubmitting(true);
     setAuthError("");
     try {
-      const response = await axios.post<ApiResponse>(
-        `${rootUrl}/auth/signin`,
-        data,
-        { withCredentials: true }
+      const response = await api.post<ApiResponse>(
+        '/auth/signin', // No need for full URL since we set baseURL in axios config
+        data
       );
       
-      // Update to use accessToken instead of token
       setEmail(response.data.user.email);
-      setAccessToken(response.data.accessToken); // Changed from token to accessToken
+      setAccessToken(response.data.accessToken);
 
       toast({
         title: "Success",

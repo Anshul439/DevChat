@@ -8,6 +8,7 @@ import {
   refreshToken,
   signin,
   signup,
+  verifyToken,
 } from "../controllers/auth.controller";
 import authenticateToken from "../middlewares/authenticateToken";
 
@@ -28,5 +29,7 @@ router.get("/check-email", checkEmail);
 router.get("/validate-token", authenticateToken, (req, res) => {
   res.status(200).json({ message: "Token is valid", user: req.user });
 });
+
+router.get('/verify', authenticateToken, verifyToken);
 
 export default router;

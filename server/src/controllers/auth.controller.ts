@@ -96,7 +96,6 @@ export const signup = async (
       .cookie("accessToken", accessToken, cookieOptions)
       .cookie("refreshToken", refreshToken, {
         ...cookieOptions,
-        path: "/api/auth/refresh",
       })
       .json({
         message: "User created successfully",
@@ -172,7 +171,6 @@ export const signin = async (
       .cookie("accessToken", accessToken, cookieOptions)
       .cookie("refreshToken", refreshToken, {
         ...cookieOptions,
-        path: "/api/auth/refresh",
       })
       .json({
         message: "Sign in successful",
@@ -282,7 +280,6 @@ export const githubOauth = async (
       .cookie("accessToken", accessToken, cookieOptions)
       .cookie("refreshToken", refreshToken, {
         ...cookieOptions,
-        path: "/api/auth/refresh",
       })
       .json({
         success: true,
@@ -390,7 +387,6 @@ export const googleOauth = async (
       .cookie("accessToken", accessToken, cookieOptions)
       .cookie("refreshToken", refreshToken, {
         ...cookieOptions,
-        path: "/api/auth/refresh",
       })
       .json({
         success: true,
@@ -560,6 +556,36 @@ export const refreshToken = async (
     });
   } catch (error) {
     res.status(401).json({ error: "Invalid refresh token" });
+    console.error(error);
+  }
+};
+
+
+
+
+// Add this to your auth controller
+
+export const verifyToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    // If we reach here, the auth middleware has already verified the token
+    const user = (req as any).user; // Assuming your auth middleware attaches user to req
+    
+    res.status(200).json({
+      success: true,
+      message: "Token is valid",
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        fullName: user.fullName
+      }
+    });
+  } catch (error) {
+    res.status(401).json({ error: "Invalid token" });
     console.error(error);
   }
 };

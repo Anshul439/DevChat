@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
+import api from "@/lib/axiosConfig";
 
 type ChatItem = {
   id: number;
@@ -194,8 +195,8 @@ export default function ChatPage() {
     try {
       // Fetch both simultaneously
       const [usersResponse, groupsResponse] = await Promise.all([
-        axios.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
-        axios.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
+        api.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
+        api.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
       ]);
 
       // Set both states together
@@ -325,7 +326,7 @@ export default function ChatPage() {
 
     setLoadingMessages(true);
     try {
-      const res = await axios.get<UserMessage[]>(`${rootUrl}/message`, {
+      const res = await api.get<UserMessage[]>(`${rootUrl}/message`, {
         params: {
           user1Email: email,
           user2Email: selectedUser.email,
@@ -440,7 +441,7 @@ export default function ChatPage() {
     try {
       // Send to server and socket concurrently
       const [response] = await Promise.all([
-        axios.post(
+        api.post(
           `${rootUrl}/message`,
           {
             text: messageText,
@@ -520,7 +521,7 @@ export default function ChatPage() {
       }
 
       // Server request can happen in background
-      await axios.post(
+      await api.post(
         `${rootUrl}/group/${selectedGroup.id}/messages`,
         {
           text: messageText,
@@ -571,7 +572,7 @@ export default function ChatPage() {
         memberIds.push(currentUser.id);
       }
 
-      const response = await axios.post(
+      const response = await api.post(
         `${rootUrl}/group`,
         {
           name: groupName.trim(),
@@ -609,7 +610,7 @@ export default function ChatPage() {
     async (groupId: number) => {
       setLoadingMessages(true);
       try {
-        const res = await axios.get<GroupMessage[]>(
+        const res = await api.get<GroupMessage[]>(
           `${rootUrl}/group/${groupId}/messages`,
           {
             withCredentials: true,
@@ -657,7 +658,7 @@ export default function ChatPage() {
 
   const handleLogout = async () => {
     try {
-      await axios.post(
+      await api.post(
         `${rootUrl}/auth/logout`,
         {},
         {
