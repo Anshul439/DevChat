@@ -17,9 +17,6 @@ export const storeMessage = async (
       return;
     }
 
-    // console.log(text);
-    
-
     // Find sender and receiver by email
     const sender = await prisma.user.findUnique({
       where: { email: senderEmail }
@@ -66,19 +63,21 @@ export const storeMessage = async (
   }
 };
 
-// Get messages between two users
+// Get messages between two users with pagination
 export const getMessages = async (
     req: Request,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
   try {
-    const { user1Email, user2Email } = req.query;
+    const { user1Email, user2Email, limit = '20', cursor } = req.query;
 
     if (!user1Email || !user2Email) {
       res.status(400).json({ error: 'Both user emails are required' });
       return;
     }
+
+    const messageLimit = parseInt(limit as string);
 
     // Find users by email
     const user1 = await prisma.user.findUnique({
@@ -94,16 +93,26 @@ export const getMessages = async (
       return;
     }
 
-    // Get messages using user IDs
+    // Build the query
+    const whereClause = {
+      OR: [
+        { senderId: user1.id, receiverId: user2.id },
+        { senderId: user2.id, receiverId: user1.id },
+      ],
+    };
+
+    // Get messages using user IDs with pagination
     const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: user1.id, receiverId: user2.id },
-          { senderId: user2.id, receiverId: user1.id },
-        ],
-      },
+      where: whereClause,
+      take: messageLimit,
+      ...(cursor && {
+        skip: 1, // Skip the cursor itself
+        cursor: {
+          id: parseInt(cursor as string)
+        }
+      }),
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc', // Get newest first, then reverse in client
       },
       include: {
         sender: {
@@ -123,7 +132,20 @@ export const getMessages = async (
       }
     });
 
-    res.json(messages);
+    // Get total count for hasMore calculation
+    const totalCount = await prisma.message.count({
+      where: whereClause
+    });
+
+    const hasMore = cursor 
+      ? messages.length === messageLimit
+      : totalCount > messageLimit;
+
+    res.json({
+      messages: messages.reverse(), // Reverse to get oldest to newest for display
+      hasMore,
+      nextCursor: messages.length > 0 ? messages[0].id : null
+    });
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });

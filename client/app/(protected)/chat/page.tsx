@@ -139,6 +139,20 @@ export default function ChatPage() {
   const [combinedChats, setCombinedChats] = useState<ChatItem[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
+  // Add pagination states
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [hasMoreGroupMessages, setHasMoreGroupMessages] = useState(false);
+  const [messageCursor, setMessageCursor] = useState<number | null>(null);
+  const [groupMessageCursor, setGroupMessageCursor] = useState<number | null>(
+    null
+  );
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  // Scroll detection ref
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isNearTop, setIsNearTop] = useState(false);
+
   const router = useRouter();
 
   // Memoize socket handlers to prevent re-creation on each render
@@ -321,50 +335,78 @@ export default function ChatPage() {
   }, [fetchUsersAndGroups]);
 
   // Fetch Messages
-  const fetchMessages = useCallback(async () => {
-    if (!selectedUser || !email) return;
+  const fetchMessages = useCallback(
+    async (cursor: number | null = null, isLoadingMore = false) => {
+      if (!selectedUser || !email) return;
 
-    setLoadingMessages(true);
-    try {
-      const res = await api.get<UserMessage[]>(`${rootUrl}/message`, {
-        params: {
+      if (!isLoadingMore) {
+        setLoadingMessages(true);
+        setInitialLoadComplete(false);
+      } else {
+        setLoadingMoreMessages(true);
+      }
+
+      try {
+        const params: any = {
           user1Email: email,
           user2Email: selectedUser.email,
-        },
-        withCredentials: true,
-        timeout: 10000,
-      });
+          limit: 20,
+        };
 
-      const formattedMessages = res.data.map((msg) => ({
-        id: msg.id,
-        text: msg.text,
-        sender: msg.sender.email,
-        receiver: msg.receiver.email,
-        createdAt: msg.createdAt,
-        senderObject: msg.sender,
-        receiverObject: msg.receiver,
-        isUser: msg.sender.email === email,
-      }));
+        if (cursor) {
+          params.cursor = cursor;
+        }
 
-      setMessages(formattedMessages);
+        const res = await api.get(`${rootUrl}/message`, {
+          params,
+          withCredentials: true,
+          timeout: 10000,
+        });
 
-      // Immediately scroll to bottom after setting messages
-      setTimeout(() => {
-        scrollToBottom();
-      }, 0);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      setMessages([]);
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [selectedUser?.email, email, rootUrl]);
+        const formattedMessages = res.data.messages.map((msg: any) => ({
+          id: msg.id,
+          text: msg.text,
+          sender: msg.sender.email,
+          receiver: msg.receiver.email,
+          createdAt: msg.createdAt,
+          senderObject: msg.sender,
+          receiverObject: msg.receiver,
+          isUser: msg.sender.email === email,
+        }));
+
+        if (isLoadingMore) {
+          // Prepend older messages
+          setMessages((prev) => [...formattedMessages, ...prev]);
+        } else {
+          // Initial load
+          setMessages(formattedMessages);
+          setTimeout(() => scrollToBottom(), 0);
+        }
+
+        setHasMoreMessages(res.data.hasMore);
+        setMessageCursor(res.data.nextCursor);
+
+        if (!isLoadingMore) {
+          setInitialLoadComplete(true);
+        }
+      } catch (error) {
+        console.error("Error fetching messages:", error);
+        if (!isLoadingMore) {
+          setMessages([]);
+        }
+      } finally {
+        setLoadingMessages(false);
+        setLoadingMoreMessages(false);
+      }
+    },
+    [selectedUser?.email, email, rootUrl]
+  );
 
   useEffect(() => {
     if (selectedUser && email) {
-      fetchMessages();
+      fetchMessages(null, false);
     }
-  }, [selectedUser, fetchMessages]);
+  }, [selectedUser, email]);
 
   useEffect(() => {
     // Scroll immediately when messages change and we have a selected chat
@@ -375,6 +417,102 @@ export default function ChatPage() {
       }, 0);
     }
   }, [messages, groupMessages, selectedUser, selectedGroup]);
+
+    const fetchGroupMessages = useCallback(
+    async (
+      groupId: number,
+      cursor: number | null = null,
+      isLoadingMore = false
+    ) => {
+      if (!isLoadingMore) {
+        setLoadingMessages(true);
+        setInitialLoadComplete(false);
+      } else {
+        setLoadingMoreMessages(true);
+      }
+
+      try {
+        const params: any = {
+          limit: 20,
+        };
+
+        if (cursor) {
+          params.cursor = cursor;
+        }
+
+        const res = await api.get(`${rootUrl}/group/${groupId}/messages`, {
+          params,
+          withCredentials: true,
+        });
+
+        const formattedGroupMessages = res.data.messages.map((msg: any) => ({
+          ...msg,
+          isUser: msg.sender.email === email,
+        }));
+
+        if (isLoadingMore) {
+          setGroupMessages((prev) => [...formattedGroupMessages, ...prev]);
+        } else {
+          setGroupMessages(formattedGroupMessages);
+          setTimeout(() => scrollToBottom(), 0);
+        }
+
+        setHasMoreGroupMessages(res.data.hasMore);
+        setGroupMessageCursor(res.data.nextCursor);
+
+        if (!isLoadingMore) {
+          setInitialLoadComplete(true);
+        }
+      } catch (error) {
+        console.error("Error fetching group messages:", error);
+        if (!isLoadingMore) {
+          setGroupMessages([]);
+        }
+      } finally {
+        setLoadingMessages(false);
+        setLoadingMoreMessages(false);
+      }
+    },
+    [rootUrl, email]
+  );
+
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const scrollTop = container.scrollTop;
+    const threshold = 100; // pixels from top
+
+    setIsNearTop(scrollTop < threshold);
+
+    // Load more messages when near top
+    if (scrollTop < threshold && !loadingMoreMessages && initialLoadComplete) {
+      if (selectedUser && hasMoreMessages && messageCursor) {
+        fetchMessages(messageCursor, true);
+      } else if (selectedGroup && hasMoreGroupMessages && groupMessageCursor) {
+        fetchGroupMessages(selectedGroup.id, groupMessageCursor, true);
+      }
+    }
+  }, [
+    loadingMoreMessages,
+    hasMoreMessages,
+    hasMoreGroupMessages,
+    messageCursor,
+    groupMessageCursor,
+    selectedUser,
+    selectedGroup,
+    fetchMessages,
+    fetchGroupMessages,
+    initialLoadComplete,
+  ]);
+
+    useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleScroll);
+      return () => container.removeEventListener("scroll", handleScroll);
+    }
+  }, [handleScroll]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -391,31 +529,30 @@ export default function ChatPage() {
     }
   };
 
-  const handleUserSelect = useCallback(
-    (user: User) => {
-      setSelectedUser(user);
-      setSelectedGroup(null);
-      setMessages([]); // Clear messages immediately
-      setLoadingMessages(true);
+  const handleUserSelect = useCallback((user: User) => {
+    setSelectedUser(user);
+    setSelectedGroup(null);
+    setMessages([]);
+    setMessageCursor(null);
+    setHasMoreMessages(false);
+    setInitialLoadComplete(false);
+    setLoadingMessages(true);
 
-      // Join room immediately
-      if (socketRef.current && email) {
-        socketRef.current.emit("join-room", {
-          sender: email,
-          receiver: user.email,
-        });
-      }
+    if (socketRef.current && email) {
+      socketRef.current.emit("join-room", {
+        sender: email,
+        receiver: user.email,
+      });
+    }
 
-      setUsers((prevUsers) =>
-        prevUsers.map((u) =>
-          u.id === user.id ? { ...u, hasNewMessages: false } : u
-        )
-      );
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u.id === user.id ? { ...u, hasNewMessages: false } : u
+      )
+    );
 
-      setIsMobileSidebarOpen(false);
-    },
-    [email]
-  );
+    setIsMobileSidebarOpen(false);
+  }, [email]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !email) return;
@@ -606,55 +743,28 @@ export default function ChatPage() {
     // This ensures immediate positioning without smooth scrolling
   };
 
-  const fetchGroupMessages = useCallback(
-    async (groupId: number) => {
-      setLoadingMessages(true);
-      try {
-        const res = await api.get<GroupMessage[]>(
-          `${rootUrl}/group/${groupId}/messages`,
-          {
-            withCredentials: true,
-          }
-        );
+  const handleGroupSelect = useCallback((group: Group) => {
+    setSelectedGroup(group);
+    setSelectedUser(null);
+    setGroupMessages([]);
+    setGroupMessageCursor(null);
+    setHasMoreGroupMessages(false);
+    setInitialLoadComplete(false);
+    setLoadingMessages(true);
 
-        const formattedGroupMessages = res.data.map((msg) => ({
-          ...msg,
-          isUser: msg.sender.email === email, // Add this line
-        }));
-        setGroupMessages(formattedGroupMessages);
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === group.id ? { ...g, hasNewMessages: false } : g
+      )
+    );
 
-        scrollToBottom();
-      } catch (error) {
-        console.error("Error fetching group messages:", error);
-        setGroupMessages([]);
-      } finally {
-        setLoadingMessages(false);
-      }
-    },
-    [rootUrl]
-  );
+    if (socketRef.current) {
+      socketRef.current.emit("join-group-room", group.id);
+    }
 
-  const handleGroupSelect = useCallback(
-    (group: Group) => {
-      setSelectedGroup(group);
-      setSelectedUser(null);
-      setGroupMessages([]);
-      setLoadingMessages(true);
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.id === group.id ? { ...g, hasNewMessages: false } : g
-        )
-      );
-
-      if (socketRef.current) {
-        socketRef.current.emit("join-group-room", group.id);
-      }
-
-      fetchGroupMessages(group.id);
-      setIsMobileSidebarOpen(false);
-    },
-    [fetchGroupMessages]
-  );
+    fetchGroupMessages(group.id);
+    setIsMobileSidebarOpen(false);
+  }, [fetchGroupMessages]);
 
   const handleLogout = async () => {
     try {
@@ -679,7 +789,72 @@ export default function ChatPage() {
     chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  return (
+    const renderMessages = () => {
+    const messagesToRender = selectedGroup ? groupMessages : messages;
+    const hasMore = selectedGroup ? hasMoreGroupMessages : hasMoreMessages;
+
+    return (
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-3"
+        style={{ scrollBehavior: "auto" }}
+      >
+        {/* Loading more indicator at top */}
+        {loadingMoreMessages && (
+          <div className="flex justify-center py-2">
+            <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+          </div>
+        )}
+
+        {/* Has more indicator */}
+        {hasMore && !loadingMoreMessages && initialLoadComplete && (
+          <div className="flex justify-center py-2">
+            <span className="text-xs text-gray-500">Scroll up to load more</span>
+          </div>
+        )}
+
+        {/* Initial loading */}
+        {loadingMessages && !initialLoadComplete ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="text-gray-500 dark:text-gray-400">
+              Loading messages...
+            </div>
+          </div>
+        ) : (
+          <>
+            {messagesToRender.map((message: any) => (
+              <div
+                key={message.id}
+                className={`flex ${
+                  message.isUser || message.sender?.email === email
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-xs md:max-w-md rounded-lg p-3 ${
+                    message.isUser || message.sender?.email === email
+                      ? "bg-orange-500 text-white rounded-tr-none"
+                      : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
+                  }`}
+                >
+                  {selectedGroup && message.sender?.email !== email && (
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-300 mb-1">
+                      {message.sender?.username}
+                    </p>
+                  )}
+                  <p>{message.text}</p>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+    );
+  };
+
+return (
     <div className="flex h-screen bg-white dark:bg-gray-900 text-black dark:text-white">
       {/* Mobile Header (Hidden on larger screens) */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 shadow-sm">
@@ -981,54 +1156,8 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Group Messages Area */}
-            <div 
-  className="flex-1 overflow-y-auto p-4 space-y-3"
-  style={messagesContainerStyle}
-  ref={(el) => {
-    if (el && (groupMessages.length > 0 || loadingMessages)) {
-      // Immediately scroll to bottom when ref is set
-      el.scrollTop = el.scrollHeight;
-    }
-  }}
->
-              {loadingMessages ? (
-                <div className="flex justify-center items-center h-full">
-                  <div className="text-gray-500 dark:text-gray-400">
-                    Loading messages...
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {groupMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.sender.email === email
-                          ? "justify-end"
-                          : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-                          message.sender.email === email
-                            ? "bg-orange-500 text-white rounded-tr-none"
-                            : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
-                        }`}
-                      >
-                        {message.sender.email !== email && (
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-300 mb-1">
-                            {message.sender.username}
-                          </p>
-                        )}
-                        <p>{message.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </>
-              )}
-            </div>
+            {/* Group Messages Area with Pagination */}
+            {renderMessages()}
 
             {/* Group Message Input */}
             <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
@@ -1085,47 +1214,8 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Messages Area */}
-            <div
-              className="flex-1 overflow-y-auto p-4 space-y-3"
-              style={messagesContainerStyle}
-              ref={(el) => {
-                if (el && (messages.length > 0 || loadingMessages)) {
-                  // Immediately scroll to bottom when ref is set
-                  el.scrollTop = el.scrollHeight;
-                }
-              }}
-            >
-              {loadingMessages ? (
-                <div className="flex justify-center items-center h-full">
-                  <div className="text-gray-500 dark:text-gray-400">
-                    Loading messages...
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.isUser ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-xs md:max-w-md rounded-lg p-3 ${
-                          message.isUser
-                            ? "bg-orange-500 text-white rounded-tr-none"
-                            : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none"
-                        }`}
-                      >
-                        <p>{message.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </>
-              )}
-            </div>
+            {/* Messages Area with Pagination */}
+            {renderMessages()}
 
             {/* Message Input */}
             <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
