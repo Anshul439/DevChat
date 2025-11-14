@@ -10,6 +10,7 @@ import {
   UsersIcon,
   LogOut,
   X,
+  Loader2,
 } from "lucide-react";
 import useAuthStore from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,6 @@ interface GroupMessage {
   createdAt: string;
 }
 
-// Utility Functions
 const getInitials = (name: string) => {
   return name
     .split(" ")
@@ -117,7 +117,6 @@ const getInitials = (name: string) => {
 };
 
 export default function ChatPage() {
-  // State Management
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -139,7 +138,7 @@ export default function ChatPage() {
   const [combinedChats, setCombinedChats] = useState<ChatItem[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
-  // Add pagination states
+  // pagination states
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [hasMoreGroupMessages, setHasMoreGroupMessages] = useState(false);
   const [messageCursor, setMessageCursor] = useState<number | null>(null);
@@ -155,12 +154,10 @@ export default function ChatPage() {
 
   const router = useRouter();
 
-  // Memoize socket handlers to prevent re-creation on each render
   const handleReceiveMessage = useCallback(
     (data: any) => {
       const isUser = data.sender === email;
 
-      // Only update messages if we're in the relevant chat
       if (
         selectedUser &&
         (data.sender === selectedUser.email ||
@@ -169,7 +166,7 @@ export default function ChatPage() {
         setMessages((prevMessages) => [
           ...prevMessages,
           {
-            id: data.id || Date.now(), // Use server ID if available
+            id: data.id || Date.now(),
             text: data.text,
             isUser: isUser,
             sender: data.sender,
@@ -180,11 +177,10 @@ export default function ChatPage() {
       }
     },
     [email, selectedUser?.email]
-  ); // Add selectedUser.email to dependencies
+  );
 
   const handleNewGroupAdded = useCallback(
     (newGroup: any) => {
-      // Check if the current user is a member of this group
       const userIsMember = newGroup.members.some(
         (member: any) => member.user.email === email
       );
@@ -207,18 +203,15 @@ export default function ChatPage() {
 
   const fetchUsersAndGroups = useCallback(async () => {
     try {
-      // Fetch both simultaneously
       const [usersResponse, groupsResponse] = await Promise.all([
         api.get<User[]>(`${rootUrl}/user`, { withCredentials: true }),
         api.get<Group[]>(`${rootUrl}/group`, { withCredentials: true }),
       ]);
 
-      // Set both states together
       setUsers(usersResponse.data);
       setGroups(groupsResponse.data);
     } catch (error) {
       console.error("Error fetching users and groups:", error);
-      // Set empty arrays on error to prevent undefined states
       setUsers([]);
       setGroups([]);
     }
@@ -236,12 +229,10 @@ export default function ChatPage() {
       socketRef.current.on("connect", () => {
         console.log("Connected to socket server:", socketRef.current?.id);
 
-        // NEW: Emit user-online event for friend requests
         if (email) {
           socketRef.current?.emit("user-online", email);
         }
 
-        // If there's a selected user, join their room immediately
         if (selectedUser && email) {
           socketRef.current?.emit("join-room", {
             sender: email,
@@ -249,22 +240,17 @@ export default function ChatPage() {
           });
         }
 
-        // If there's a selected group, join that room immediately
         if (selectedGroup) {
           socketRef.current?.emit("join-group-room", selectedGroup.id);
         }
       });
 
-      // Set up existing event listeners
       socketRef.current.on("receive-message", handleReceiveMessage);
       socketRef.current.on("new-group-added", handleNewGroupAdded);
       socketRef.current.on("receive-group-message", handleReceiveGroupMessage);
 
-      // NEW: Add friend request event listeners to chat component (optional)
-      // This allows the chat component to react to friend request events
       socketRef.current.on("friend-request-received", (data: any) => {
         console.log("New friend request received in chat:", data);
-        // You could show a toast notification here
       });
 
       socketRef.current.on("friend-request-was-accepted", (data: any) => {
@@ -295,7 +281,7 @@ export default function ChatPage() {
     handleReceiveMessage,
     handleNewGroupAdded,
     handleReceiveGroupMessage,
-    fetchUsersAndGroups, // Add this dependency
+    fetchUsersAndGroups,
   ]);
 
   useEffect(() => {
@@ -322,7 +308,7 @@ export default function ChatPage() {
       groupObject: group,
     }));
 
-    // Just combine without sorting
+    // combine without sorting
     return [...userChats, ...groupChats];
   }, []);
 
@@ -334,73 +320,84 @@ export default function ChatPage() {
     fetchUsersAndGroups();
   }, [fetchUsersAndGroups]);
 
-  // Fetch Messages
-  const fetchMessages = useCallback(
-    async (cursor: number | null = null, isLoadingMore = false) => {
-      if (!selectedUser || !email) return;
+const fetchMessages = useCallback(
+  async (cursor: number | null = null, isLoadingMore = false) => {
+    if (!selectedUser || !email) return;
+
+    if (!isLoadingMore) {
+      setLoadingMessages(true);
+      setInitialLoadComplete(false);
+    } else {
+      setLoadingMoreMessages(true);
+    }
+
+    // Store scroll position before loading more messages
+    const container = messagesContainerRef.current;
+    const scrollHeightBefore = container?.scrollHeight || 0;
+    const scrollTopBefore = container?.scrollTop || 0;
+
+    try {
+      const params: any = {
+        user1Email: email,
+        user2Email: selectedUser.email,
+        limit: 20,
+      };
+
+      if (cursor) {
+        params.cursor = cursor;
+      }
+
+      const res = await api.get(`${rootUrl}/message`, {
+        params,
+        withCredentials: true,
+        timeout: 10000,
+      });
+
+      const formattedMessages = res.data.messages.map((msg: any) => ({
+        id: msg.id,
+        text: msg.text,
+        sender: msg.sender.email,
+        receiver: msg.receiver.email,
+        createdAt: msg.createdAt,
+        senderObject: msg.sender,
+        receiverObject: msg.receiver,
+        isUser: msg.sender.email === email,
+      }));
+
+      if (isLoadingMore) {
+        setMessages((prev) => [...formattedMessages, ...prev]);
+        
+        // Restore scroll position after DOM updates
+        setTimeout(() => {
+          if (container) {
+            const scrollHeightAfter = container.scrollHeight;
+            const heightDifference = scrollHeightAfter - scrollHeightBefore;
+            container.scrollTop = scrollTopBefore + heightDifference;
+          }
+        }, 0);
+      } else {
+        setMessages(formattedMessages);
+        setTimeout(() => scrollToBottom(), 0);
+      }
+
+      setHasMoreMessages(res.data.hasMore);
+      setMessageCursor(res.data.nextCursor);
 
       if (!isLoadingMore) {
-        setLoadingMessages(true);
-        setInitialLoadComplete(false);
-      } else {
-        setLoadingMoreMessages(true);
+        setInitialLoadComplete(true);
       }
-
-      try {
-        const params: any = {
-          user1Email: email,
-          user2Email: selectedUser.email,
-          limit: 20,
-        };
-
-        if (cursor) {
-          params.cursor = cursor;
-        }
-
-        const res = await api.get(`${rootUrl}/message`, {
-          params,
-          withCredentials: true,
-          timeout: 10000,
-        });
-
-        const formattedMessages = res.data.messages.map((msg: any) => ({
-          id: msg.id,
-          text: msg.text,
-          sender: msg.sender.email,
-          receiver: msg.receiver.email,
-          createdAt: msg.createdAt,
-          senderObject: msg.sender,
-          receiverObject: msg.receiver,
-          isUser: msg.sender.email === email,
-        }));
-
-        if (isLoadingMore) {
-          // Prepend older messages
-          setMessages((prev) => [...formattedMessages, ...prev]);
-        } else {
-          // Initial load
-          setMessages(formattedMessages);
-          setTimeout(() => scrollToBottom(), 0);
-        }
-
-        setHasMoreMessages(res.data.hasMore);
-        setMessageCursor(res.data.nextCursor);
-
-        if (!isLoadingMore) {
-          setInitialLoadComplete(true);
-        }
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-        if (!isLoadingMore) {
-          setMessages([]);
-        }
-      } finally {
-        setLoadingMessages(false);
-        setLoadingMoreMessages(false);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      if (!isLoadingMore) {
+        setMessages([]);
       }
-    },
-    [selectedUser?.email, email, rootUrl]
-  );
+    } finally {
+      setLoadingMessages(false);
+      setLoadingMoreMessages(false);
+    }
+  },
+  [selectedUser?.email, email, rootUrl]
+);
 
   useEffect(() => {
     if (selectedUser && email) {
@@ -408,73 +405,85 @@ export default function ChatPage() {
     }
   }, [selectedUser, email]);
 
-  useEffect(() => {
-    // Scroll immediately when messages change and we have a selected chat
-    if (selectedUser || selectedGroup) {
-      // Use setTimeout to ensure DOM has updated
-      setTimeout(() => {
-        scrollToBottom();
-      }, 0);
+useEffect(() => {
+  if (initialLoadComplete && !loadingMoreMessages) {
+    setTimeout(() => {
+      scrollToBottom();
+    }, 0);
+  }
+}, [initialLoadComplete]);
+
+const fetchGroupMessages = useCallback(
+  async (
+    groupId: number,
+    cursor: number | null = null,
+    isLoadingMore = false
+  ) => {
+    if (!isLoadingMore) {
+      setLoadingMessages(true);
+      setInitialLoadComplete(false);
+    } else {
+      setLoadingMoreMessages(true);
     }
-  }, [messages, groupMessages, selectedUser, selectedGroup]);
 
-    const fetchGroupMessages = useCallback(
-    async (
-      groupId: number,
-      cursor: number | null = null,
-      isLoadingMore = false
-    ) => {
-      if (!isLoadingMore) {
-        setLoadingMessages(true);
-        setInitialLoadComplete(false);
+    // Store scroll position before loading more messages
+    const container = messagesContainerRef.current;
+    const scrollHeightBefore = container?.scrollHeight || 0;
+    const scrollTopBefore = container?.scrollTop || 0;
+
+    try {
+      const params: any = {
+        limit: 20,
+      };
+
+      if (cursor) {
+        params.cursor = cursor;
+      }
+
+      const res = await api.get(`${rootUrl}/group/${groupId}/messages`, {
+        params,
+        withCredentials: true,
+      });
+
+      const formattedGroupMessages = res.data.messages.map((msg: any) => ({
+        ...msg,
+        isUser: msg.sender.email === email,
+      }));
+
+      if (isLoadingMore) {
+        setGroupMessages((prev) => [...formattedGroupMessages, ...prev]);
+        
+        // Restore scroll position after DOM updates
+        setTimeout(() => {
+          if (container) {
+            const scrollHeightAfter = container.scrollHeight;
+            const heightDifference = scrollHeightAfter - scrollHeightBefore;
+            container.scrollTop = scrollTopBefore + heightDifference;
+          }
+        }, 0);
       } else {
-        setLoadingMoreMessages(true);
+        setGroupMessages(formattedGroupMessages);
+        setTimeout(() => scrollToBottom(), 0);
       }
 
-      try {
-        const params: any = {
-          limit: 20,
-        };
+      setHasMoreGroupMessages(res.data.hasMore);
+      setGroupMessageCursor(res.data.nextCursor);
 
-        if (cursor) {
-          params.cursor = cursor;
-        }
-
-        const res = await api.get(`${rootUrl}/group/${groupId}/messages`, {
-          params,
-          withCredentials: true,
-        });
-
-        const formattedGroupMessages = res.data.messages.map((msg: any) => ({
-          ...msg,
-          isUser: msg.sender.email === email,
-        }));
-
-        if (isLoadingMore) {
-          setGroupMessages((prev) => [...formattedGroupMessages, ...prev]);
-        } else {
-          setGroupMessages(formattedGroupMessages);
-          setTimeout(() => scrollToBottom(), 0);
-        }
-
-        setHasMoreGroupMessages(res.data.hasMore);
-        setGroupMessageCursor(res.data.nextCursor);
-
-        if (!isLoadingMore) {
-          setInitialLoadComplete(true);
-        }
-      } catch (error) {
-        console.error("Error fetching group messages:", error);
-        if (!isLoadingMore) {
-          setGroupMessages([]);
-        }
-      } finally {
-        setLoadingMessages(false);
-        setLoadingMoreMessages(false);
+      if (!isLoadingMore) {
+        setInitialLoadComplete(true);
       }
-    },
-    [rootUrl, email]
-  );
+    } catch (error) {
+      console.error("Error fetching group messages:", error);
+      if (!isLoadingMore) {
+        setGroupMessages([]);
+      }
+    } finally {
+      setLoadingMessages(false);
+      setLoadingMoreMessages(false);
+    }
+  },
+  [rootUrl, email]
+);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -506,7 +515,7 @@ export default function ChatPage() {
     initialLoadComplete,
   ]);
 
-    useEffect(() => {
+  useEffect(() => {
     const container = messagesContainerRef.current;
     if (container) {
       container.addEventListener("scroll", handleScroll);
@@ -516,7 +525,6 @@ export default function ChatPage() {
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
-      // Use scrollTop instead of scrollIntoView for immediate positioning
       const scrollContainer = messagesEndRef.current.parentElement;
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
@@ -529,30 +537,33 @@ export default function ChatPage() {
     }
   };
 
-  const handleUserSelect = useCallback((user: User) => {
-    setSelectedUser(user);
-    setSelectedGroup(null);
-    setMessages([]);
-    setMessageCursor(null);
-    setHasMoreMessages(false);
-    setInitialLoadComplete(false);
-    setLoadingMessages(true);
+  const handleUserSelect = useCallback(
+    (user: User) => {
+      setSelectedUser(user);
+      setSelectedGroup(null);
+      setMessages([]);
+      setMessageCursor(null);
+      setHasMoreMessages(false);
+      setInitialLoadComplete(false);
+      setLoadingMessages(true);
 
-    if (socketRef.current && email) {
-      socketRef.current.emit("join-room", {
-        sender: email,
-        receiver: user.email,
-      });
-    }
+      if (socketRef.current && email) {
+        socketRef.current.emit("join-room", {
+          sender: email,
+          receiver: user.email,
+        });
+      }
 
-    setUsers((prevUsers) =>
-      prevUsers.map((u) =>
-        u.id === user.id ? { ...u, hasNewMessages: false } : u
-      )
-    );
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === user.id ? { ...u, hasNewMessages: false } : u
+        )
+      );
 
-    setIsMobileSidebarOpen(false);
-  }, [email]);
+      setIsMobileSidebarOpen(false);
+    },
+    [email]
+  );
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !email) return;
@@ -560,10 +571,8 @@ export default function ChatPage() {
     const messageText = newMessage.trim();
     const tempId = Date.now();
 
-    // Clear input immediately for better UX
     setNewMessage("");
 
-    // Add message to UI immediately (optimistic update)
     const optimisticMessage = {
       id: tempId,
       text: messageText,
@@ -576,7 +585,6 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, optimisticMessage]);
 
     try {
-      // Send to server and socket concurrently
       const [response] = await Promise.all([
         api.post(
           `${rootUrl}/message`,
@@ -590,7 +598,6 @@ export default function ChatPage() {
             timeout: 10000,
           }
         ),
-        // Send socket message immediately without waiting for server response
         socketRef.current?.emit("message", {
           text: messageText,
           sender: email,
@@ -600,7 +607,6 @@ export default function ChatPage() {
         }),
       ]);
 
-      // Update with server response
       if (response.data.id) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -616,9 +622,7 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      // Remove optimistic message on error
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-      // Restore message in input
       setNewMessage(messageText);
     }
   };
@@ -629,10 +633,8 @@ export default function ChatPage() {
     const messageText = newMessage.trim();
     const tempId = Date.now();
 
-    // Clear input immediately
     setNewMessage("");
 
-    // Optimistic update
     const optimisticMessage = {
       id: tempId,
       text: messageText,
@@ -648,7 +650,6 @@ export default function ChatPage() {
     setGroupMessages((prev) => [...prev, optimisticMessage]);
 
     try {
-      // Send socket message immediately
       if (socketRef.current) {
         socketRef.current.emit("group-message", {
           text: messageText,
@@ -657,7 +658,6 @@ export default function ChatPage() {
         });
       }
 
-      // Server request can happen in background
       await api.post(
         `${rootUrl}/group/${selectedGroup.id}/messages`,
         {
@@ -672,7 +672,6 @@ export default function ChatPage() {
       );
     } catch (error) {
       console.error("Error sending group message:", error);
-      // Remove optimistic message on error
       setGroupMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       setNewMessage(messageText);
     }
@@ -729,7 +728,6 @@ export default function ChatPage() {
       setSelectedUsersForGroup([]);
       setGroupName("");
 
-      // Join the group room
       if (socketRef.current) {
         socketRef.current.emit("join-group-room", response.data.id);
       }
@@ -740,31 +738,33 @@ export default function ChatPage() {
 
   const messagesContainerStyle = {
     scrollBehavior: "auto" as const,
-    // This ensures immediate positioning without smooth scrolling
   };
 
-  const handleGroupSelect = useCallback((group: Group) => {
-    setSelectedGroup(group);
-    setSelectedUser(null);
-    setGroupMessages([]);
-    setGroupMessageCursor(null);
-    setHasMoreGroupMessages(false);
-    setInitialLoadComplete(false);
-    setLoadingMessages(true);
+  const handleGroupSelect = useCallback(
+    (group: Group) => {
+      setSelectedGroup(group);
+      setSelectedUser(null);
+      setGroupMessages([]);
+      setGroupMessageCursor(null);
+      setHasMoreGroupMessages(false);
+      setInitialLoadComplete(false);
+      setLoadingMessages(true);
 
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === group.id ? { ...g, hasNewMessages: false } : g
-      )
-    );
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === group.id ? { ...g, hasNewMessages: false } : g
+        )
+      );
 
-    if (socketRef.current) {
-      socketRef.current.emit("join-group-room", group.id);
-    }
+      if (socketRef.current) {
+        socketRef.current.emit("join-group-room", group.id);
+      }
 
-    fetchGroupMessages(group.id);
-    setIsMobileSidebarOpen(false);
-  }, [fetchGroupMessages]);
+      fetchGroupMessages(group.id);
+      setIsMobileSidebarOpen(false);
+    },
+    [fetchGroupMessages]
+  );
 
   const handleLogout = async () => {
     try {
@@ -789,7 +789,7 @@ export default function ChatPage() {
     chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-    const renderMessages = () => {
+  const renderMessages = () => {
     const messagesToRender = selectedGroup ? groupMessages : messages;
     const hasMore = selectedGroup ? hasMoreGroupMessages : hasMoreMessages;
 
@@ -799,21 +799,20 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto p-4 space-y-3"
         style={{ scrollBehavior: "auto" }}
       >
-        {/* Loading more indicator at top */}
         {loadingMoreMessages && (
           <div className="flex justify-center py-2">
             <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
           </div>
         )}
 
-        {/* Has more indicator */}
         {hasMore && !loadingMoreMessages && initialLoadComplete && (
           <div className="flex justify-center py-2">
-            <span className="text-xs text-gray-500">Scroll up to load more</span>
+            <span className="text-xs text-gray-500">
+              Scroll up to load more
+            </span>
           </div>
         )}
 
-        {/* Initial loading */}
         {loadingMessages && !initialLoadComplete ? (
           <div className="flex justify-center items-center h-full">
             <div className="text-gray-500 dark:text-gray-400">
@@ -854,7 +853,7 @@ export default function ChatPage() {
     );
   };
 
-return (
+  return (
     <div className="flex h-screen bg-white dark:bg-gray-900 text-black dark:text-white">
       {/* Mobile Header (Hidden on larger screens) */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 shadow-sm">
