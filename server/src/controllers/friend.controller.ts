@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
+import redisClient from "../lib/redis";
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,6 @@ export const sendFriendRequest = async (
       return;
     }
 
-    // Check if friendship already exists
     const existingFriendship = await prisma.friendship.findFirst({
       where: {
         OR: [
@@ -137,12 +137,36 @@ export const updateFriendRequest = async (
           user2: { select: { id: true, username: true, email: true } }
         }
       });
+
+      // Invalidation
+      const key1 = `friends:${updatedFriendship.user1Id}`;
+      const key2 = `friends:${updatedFriendship.user2Id}`;
+      (async () => {
+        try {
+          await Promise.all([redisClient.del(key1), redisClient.del(key2)]);
+          console.log(`Invalidated cache: ${key1}, ${key2}`);
+        } catch (e) {
+          console.warn("Failed to invalidate friends cache:", e && e.message ? e.message : e);
+        }
+      })();
+
       res.status(200).json(updatedFriendship);
     } else {
-      // For reject action, delete the request instead of marking as rejected
       await prisma.friendship.delete({
         where: { id: parseInt(requestId) }
       });
+
+      const key1 = `friends:${friendship.user1Id}`;
+      const key2 = `friends:${friendship.user2Id}`;
+      (async () => {
+        try {
+          await Promise.all([redisClient.del(key1), redisClient.del(key2)]);
+          console.log(`Invalidated cache (on delete): ${key1}, ${key2}`);
+        } catch (e) {
+          console.warn("Failed to invalidate friends cache:", e && e.message ? e.message : e);
+        }
+      })();
+
       res.status(200).json({ message: "Friend request deleted" });
     }
   } catch (error) {
@@ -151,7 +175,6 @@ export const updateFriendRequest = async (
   }
 };
 
-// Add this new function to your friend controller
 export const cancelFriendRequest = async (
   req: Request,
   res: Response,
@@ -161,11 +184,10 @@ export const cancelFriendRequest = async (
     const currentUserId = (req as any).user?.id;
     const { requestId } = req.params;
 
-    // Find the friend request that the current user sent
     const friendship = await prisma.friendship.findFirst({
       where: {
         id: parseInt(requestId),
-        user1Id: currentUserId, // Only the sender can cancel
+        user1Id: currentUserId,
         status: "PENDING"
       },
       include: {
@@ -179,7 +201,6 @@ export const cancelFriendRequest = async (
       return;
     }
 
-    // Delete the friend request
     await prisma.friendship.delete({
       where: { id: parseInt(requestId) }
     });
@@ -215,7 +236,6 @@ export const getFriends = async (
       }
     });
 
-    // Map to get the friend (not the current user)
     const friends = friendships.map(friendship => {
       return friendship.user1Id === currentUserId 
         ? friendship.user2 
@@ -237,7 +257,6 @@ export const getSuggestions = async (
   try {
     const currentUserId = (req as any).user?.id;
 
-    // Get all users who are not friends and have no pending requests
     const existingConnections = await prisma.friendship.findMany({
       where: {
         OR: [
@@ -256,7 +275,7 @@ export const getSuggestions = async (
       connectedUserIds.add(conn.user1Id);
       connectedUserIds.add(conn.user2Id);
     });
-    connectedUserIds.add(currentUserId); // Exclude self
+    connectedUserIds.add(currentUserId);
 
     const suggestions = await prisma.user.findMany({
       where: {
@@ -265,7 +284,7 @@ export const getSuggestions = async (
         }
       },
       select: { id: true, username: true, email: true },
-      take: 20 // Limit suggestions
+      take: 20
     });
 
     res.status(200).json(suggestions);

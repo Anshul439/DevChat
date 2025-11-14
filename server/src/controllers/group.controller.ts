@@ -6,14 +6,12 @@ export const createGroup = async (req, res) => {
     const { name, description, memberIds } = req.body;
     const creatorId = req.user.id;
 
-    // Validate input
     if (!name || !memberIds || !Array.isArray(memberIds)) {
       return res
         .status(400)
         .json({ error: "Name and memberIds array are required" });
     }
 
-    // Create the group
     const group = await prisma.group.create({
       data: {
         name,
@@ -21,7 +19,7 @@ export const createGroup = async (req, res) => {
         creatorId,
         members: {
           create: [
-            { userId: creatorId }, // Add creator as member
+            { userId: creatorId },
             ...memberIds.map((userId) => ({ userId })),
           ],
         },
@@ -91,7 +89,6 @@ export const getGroupMessages = async (req, res) => {
     const { groupId } = req.params;
     const userId = req.user.id;
 
-    // Check if user is a member of the group
     const isMember = await prisma.groupMember.findFirst({
       where: {
         groupId: parseInt(groupId),
@@ -137,12 +134,10 @@ export const sendGroupMessage = async (req, res) => {
     
     const senderId = req.user.id;
 
-    // Validate input
     if (!text) {
       return res.status(400).json({ error: "Message text is required" });
     }
 
-    // Check if user is a member of the group
     const isMember = await prisma.groupMember.findFirst({
       where: {
         groupId: parseInt(groupId),
@@ -154,7 +149,6 @@ export const sendGroupMessage = async (req, res) => {
       return res.status(403).json({ error: "Not a member of this group" });
     }
 
-    // Create and return the message
     const message = await prisma.groupMessage.create({
       data: {
         text,
