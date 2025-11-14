@@ -1,7 +1,8 @@
 import { PrismaClient } from "@prisma/client";
+import redisClient from "../lib/redis";
 const prisma = new PrismaClient();
 
-export const createGroup = async (req, res) => {
+export const createGroup = async (req: Request, res: Response) => {
   try {
     const { name, description, memberIds } = req.body;
     const creatorId = req.user.id;
@@ -12,32 +13,40 @@ export const createGroup = async (req, res) => {
         .json({ error: "Name and memberIds array are required" });
     }
 
+    const uniqueMemberIds = Array.from(new Set([creatorId, ...memberIds]));
+
     const group = await prisma.group.create({
       data: {
         name,
         description,
         creatorId,
         members: {
-          create: [
-            { userId: creatorId },
-            ...memberIds.map((userId) => ({ userId })),
-          ],
+          create: uniqueMemberIds.map((userId: number) => ({ userId })),
         },
       },
       include: {
         members: {
           include: {
             user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-              },
+              select: { id: true, username: true, email: true },
             },
           },
         },
       },
     });
+
+    const TTL_KEY_PREFIX = "groups:";
+    (async () => {
+      try {
+        const keysToDel = uniqueMemberIds.map((id) => `${TTL_KEY_PREFIX}${id}`);
+        if (keysToDel.length) {
+          await Promise.all(keysToDel.map((k) => redisClient.del(k)));
+          console.log("Invalidated group caches:", keysToDel);
+        }
+      } catch (e) {
+        console.warn("Failed to invalidate group caches:", e && e.message ? e.message : e);
+      }
+    })();
 
     res.status(201).json(group);
   } catch (error) {
@@ -46,9 +55,22 @@ export const createGroup = async (req, res) => {
   }
 };
 
-export const getGroups = async (req, res) => {
+
+export const getGroups = async (req: Request, res: Response) => {
   try {
     const userId = req.user.id;
+    const cacheKey = `groups:${userId}`;
+    const TTL_SECONDS = 3000;
+
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        res.setHeader("X-Cache", "HIT");
+        return res.json(JSON.parse(cached));
+      }
+    } catch (e) {
+      console.warn("Redis get failed (getGroups):", e && e.message ? e.message : e);
+    }
 
     const groups = await prisma.group.findMany({
       where: {
@@ -77,12 +99,22 @@ export const getGroups = async (req, res) => {
       },
     });
 
+    (async () => {
+      try {
+        await redisClient.setex(cacheKey, TTL_SECONDS, JSON.stringify(groups));
+      } catch (e) {
+        console.warn("Redis set failed (getGroups):", e && e.message ? e.message : e);
+      }
+    })();
+
+    res.setHeader("X-Cache", "MISS");
     res.json(groups);
   } catch (error) {
     console.error("Error fetching groups:", error);
     res.status(500).json({ error: "Failed to fetch groups" });
   }
 };
+
 
 export const getGroupMessages = async (req, res) => {
   try {
