@@ -44,7 +44,10 @@ export const createGroup = async (req: Request, res: Response) => {
           console.log("Invalidated group caches:", keysToDel);
         }
       } catch (e) {
-        console.warn("Failed to invalidate group caches:", e && e.message ? e.message : e);
+        console.warn(
+          "Failed to invalidate group caches:",
+          e && e.message ? e.message : e
+        );
       }
     })();
 
@@ -54,7 +57,6 @@ export const createGroup = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to create group" });
   }
 };
-
 
 export const getGroups = async (req: Request, res: Response) => {
   try {
@@ -69,7 +71,10 @@ export const getGroups = async (req: Request, res: Response) => {
         return res.json(JSON.parse(cached));
       }
     } catch (e) {
-      console.warn("Redis get failed (getGroups):", e && e.message ? e.message : e);
+      console.warn(
+        "Redis get failed (getGroups):",
+        e && e.message ? e.message : e
+      );
     }
 
     const groups = await prisma.group.findMany({
@@ -103,7 +108,10 @@ export const getGroups = async (req: Request, res: Response) => {
       try {
         await redisClient.setex(cacheKey, TTL_SECONDS, JSON.stringify(groups));
       } catch (e) {
-        console.warn("Redis set failed (getGroups):", e && e.message ? e.message : e);
+        console.warn(
+          "Redis set failed (getGroups):",
+          e && e.message ? e.message : e
+        );
       }
     })();
 
@@ -114,7 +122,6 @@ export const getGroups = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to fetch groups" });
   }
 };
-
 
 export const getGroupMessages = async (req, res) => {
   try {
@@ -150,7 +157,11 @@ export const getGroupMessages = async (req, res) => {
       },
     });
 
-    res.json(messages);
+    res.json({
+      messages,
+      hasMore: false,
+      nextCursor: null,
+    });
   } catch (error) {
     console.error("Error fetching group messages:", error);
     res.status(500).json({ error: "Failed to fetch group messages" });
@@ -162,8 +173,7 @@ export const sendGroupMessage = async (req, res) => {
     const { groupId } = req.params;
     const { text } = req.body;
     console.log(text);
-    
-    
+
     const senderId = req.user.id;
 
     if (!text) {
