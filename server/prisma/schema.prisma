@@ -19,8 +19,8 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  verification     UserVerification? @relation
-  refreshTokens    RefreshToken[]    // Add this relation
+  verification     UserVerification?
+  refreshTokens    RefreshToken[]
   sentMessages     Message[]         @relation("SentMessages")
   receivedMessages Message[]         @relation("ReceivedMessages")
 
@@ -28,12 +28,10 @@ model User {
   groupMemberships  GroupMember[]
   sentGroupMessages GroupMessage[]
 
-  // Add these friendship relations
   sentFriendRequests     Friendship[] @relation("User1Friendships")
   receivedFriendRequests Friendship[] @relation("User2Friendships")
 }
 
-// Add this new model for refresh tokens
 model RefreshToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique
@@ -50,7 +48,7 @@ model RefreshToken {
 
 model UserVerification {
   id               Int      @id @default(autoincrement())
-  userId           Int      @unique // Foreign key for the User model
+  userId           Int      @unique
   verifyCode       String   @default("")
   verifyCodeExpiry DateTime @default(now())
   createdAt        DateTime @default(now())
@@ -61,19 +59,18 @@ model UserVerification {
 model Message {
   id         Int      @id @default(autoincrement())
   text       String
-  senderId   Int // ID of the sender
-  receiverId Int // ID of the receiver
+  senderId   Int
+  receiverId Int
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // Relations
   sender   User @relation("SentMessages", fields: [senderId], references: [id])
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
 
-  // Indexes for faster querying
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([senderId, receiverId])
+  // Optimized composite indexes for conversation queries
+  @@index([senderId, receiverId, createdAt(sort: Desc)])
+  @@index([receiverId, senderId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
 }
 
 model Group {
@@ -87,6 +84,8 @@ model Group {
   creator  User           @relation("CreatedGroups", fields: [creatorId], references: [id])
   members  GroupMember[]
   messages GroupMessage[]
+
+  @@index([creatorId])
 }
 
 model GroupMember {
@@ -99,6 +98,8 @@ model GroupMember {
   user  User  @relation(fields: [userId], references: [id])
 
   @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId])
 }
 
 model GroupMessage {
@@ -111,6 +112,10 @@ model GroupMessage {
 
   group  Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   sender User  @relation(fields: [senderId], references: [id])
+
+  // Optimized index for group message queries
+  @@index([groupId, createdAt(sort: Desc)])
+  @@index([senderId])
 }
 
 model Friendship {
@@ -125,9 +130,8 @@ model Friendship {
   user2 User @relation("User2Friendships", fields: [user2Id], references: [id])
 
   @@unique([user1Id, user2Id])
-  @@index([user1Id])
-  @@index([user2Id])
-  @@index([status])
+  @@index([user1Id, status])
+  @@index([user2Id, status])
 }
 
 enum FriendshipStatus {

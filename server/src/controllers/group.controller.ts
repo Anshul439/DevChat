@@ -131,11 +131,14 @@ export const getGroupMessages = async (req, res) => {
 
     const messageLimit = parseInt(limit);
 
-    const isMember = await prisma.groupMember.findFirst({
+    const isMember = await prisma.groupMember.findUnique({
       where: {
-        groupId: parseInt(groupId),
-        userId,
+        groupId_userId: {
+          groupId: parseInt(groupId),
+          userId: userId
+        }
       },
+      select: { id: true }
     });
 
     if (!isMember) {
@@ -150,36 +153,24 @@ export const getGroupMessages = async (req, res) => {
       where: whereClause,
       take: messageLimit,
       ...(cursor && {
-        skip: 1, // Skip the cursor itself
-        cursor: {
-          id: parseInt(cursor)
-        }
+        skip: 1,
+        cursor: { id: parseInt(cursor) }
       }),
-      orderBy: {
-        createdAt: "desc", // Get newest first
-      },
-      include: {
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        text: true,
+        createdAt: true,
         sender: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-          },
-        },
-      },
+          select: { id: true, username: true, email: true }
+        }
+      }
     });
 
-    // Get total count for hasMore calculation
-    const totalCount = await prisma.groupMessage.count({
-      where: whereClause
-    });
-
-    const hasMore = cursor 
-      ? messages.length === messageLimit
-      : totalCount > messageLimit;
+    const hasMore = messages.length === messageLimit;
 
     res.json({
-      messages: messages.reverse(), // Reverse to get oldest to newest for display
+      messages: messages.reverse(),
       hasMore,
       nextCursor: messages.length > 0 ? messages[0].id : null
     });
