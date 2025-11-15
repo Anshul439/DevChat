@@ -13,15 +13,16 @@ export const getUsers = async (
     const currentUserId = (req as any).user?.id;
 
     const TTL_SECONDS = 3000;
+    const key = `friends:${currentUserId}`;
 
-    const friendsKey = (userId) => `friends:${userId}`;
-
-    const key = friendsKey(currentUserId);
-
-    const cached = await redisClient.get(key);
-    if (cached) {
-      res.setHeader("X-Cache", "HIT");
-      return res.json(JSON.parse(cached));
+    try {
+      const cached = await redisClient.get(key);
+      if (cached) {
+        res.setHeader("X-Cache", "HIT");
+        return res.json(JSON.parse(cached));
+      }
+    } catch (redisError) {
+      console.warn("Redis get failed:", redisError);
     }
 
     const friendships = await prisma.friendship.findMany({
@@ -31,9 +32,25 @@ export const getUsers = async (
           { user2Id: currentUserId, status: "ACCEPTED" },
         ],
       },
-      include: {
-        user1: { select: { id: true, username: true, email: true } },
-        user2: { select: { id: true, username: true, email: true } },
+      select: {
+        user1Id: true,
+        user2Id: true,
+        user1: { 
+          select: { 
+            id: true, 
+            username: true, 
+            email: true,
+            profilePic: true
+          } 
+        },
+        user2: { 
+          select: { 
+            id: true, 
+            username: true, 
+            email: true,
+            profilePic: true
+          } 
+        },
       },
     });
 
@@ -43,7 +60,9 @@ export const getUsers = async (
         : friendship.user1;
     });
 
-    await redisClient.setex(key, TTL_SECONDS, JSON.stringify(friends));
+    redisClient.setex(key, TTL_SECONDS, JSON.stringify(friends)).catch((err) => {
+      console.warn("Redis set failed:", err);
+    });
 
     res.setHeader("X-Cache", "MISS");
     res.status(200).json(friends);
