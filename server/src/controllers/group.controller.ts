@@ -127,6 +127,9 @@ export const getGroupMessages = async (req, res) => {
   try {
     const { groupId } = req.params;
     const userId = req.user.id;
+    const { limit = '20', cursor } = req.query;
+
+    const messageLimit = parseInt(limit);
 
     const isMember = await prisma.groupMember.findFirst({
       where: {
@@ -139,12 +142,21 @@ export const getGroupMessages = async (req, res) => {
       return res.status(403).json({ error: "Not a member of this group" });
     }
 
+    const whereClause = {
+      groupId: parseInt(groupId),
+    };
+
     const messages = await prisma.groupMessage.findMany({
-      where: {
-        groupId: parseInt(groupId),
-      },
+      where: whereClause,
+      take: messageLimit,
+      ...(cursor && {
+        skip: 1, // Skip the cursor itself
+        cursor: {
+          id: parseInt(cursor)
+        }
+      }),
       orderBy: {
-        createdAt: "asc",
+        createdAt: "desc", // Get newest first
       },
       include: {
         sender: {
@@ -157,10 +169,19 @@ export const getGroupMessages = async (req, res) => {
       },
     });
 
+    // Get total count for hasMore calculation
+    const totalCount = await prisma.groupMessage.count({
+      where: whereClause
+    });
+
+    const hasMore = cursor 
+      ? messages.length === messageLimit
+      : totalCount > messageLimit;
+
     res.json({
-      messages,
-      hasMore: false,
-      nextCursor: null,
+      messages: messages.reverse(), // Reverse to get oldest to newest for display
+      hasMore,
+      nextCursor: messages.length > 0 ? messages[0].id : null
     });
   } catch (error) {
     console.error("Error fetching group messages:", error);
