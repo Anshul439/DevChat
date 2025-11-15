@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import redisClient from '../lib/redis';
 
 const prisma = new PrismaClient();
 
@@ -75,6 +76,20 @@ export const getMessages = async (
 
     const messageLimit = parseInt(limit as string);
 
+    const sortedEmails = [user1Email, user2Email].sort();
+    const cacheKey = `messages:${sortedEmails[0]}:${sortedEmails[1]}:${messageLimit}:${cursor || 'initial'}`;
+    const TTL_SECONDS = 3000;
+
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(JSON.parse(cached));
+      }
+    } catch (redisError) {
+      console.warn('Redis get failed (getMessages):', redisError);
+    }
+
     const [user1, user2] = await Promise.all([
       prisma.user.findUnique({ 
         where: { email: user1Email as string }, 
@@ -121,11 +136,18 @@ export const getMessages = async (
 
     const hasMore = messages.length === messageLimit;
 
-    res.json({
+    const response = {
       messages: messages.reverse(),
       hasMore,
       nextCursor: messages.length > 0 ? messages[0].id : null
+    };
+
+    redisClient.setex(cacheKey, TTL_SECONDS, JSON.stringify(response)).catch((err) => {
+      console.warn('Redis set failed (getMessages):', err);
     });
+
+    res.setHeader('X-Cache', 'MISS');
+    res.json(response);
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });

@@ -35,19 +35,16 @@ export const createGroup = async (req: Request, res: Response) => {
       },
     });
 
-    const TTL_KEY_PREFIX = "groups:";
+    // Invalidation
     (async () => {
       try {
-        const keysToDel = uniqueMemberIds.map((id) => `${TTL_KEY_PREFIX}${id}`);
+        const keysToDel = uniqueMemberIds.map((id) => `groups:${id}`);
         if (keysToDel.length) {
-          await Promise.all(keysToDel.map((k) => redisClient.del(k)));
+          await redisClient.del(...keysToDel);
           console.log("Invalidated group caches:", keysToDel);
         }
       } catch (e) {
-        console.warn(
-          "Failed to invalidate group caches:",
-          e && e.message ? e.message : e
-        );
+        console.warn("Failed to invalidate group caches:", e);
       }
     })();
 
@@ -71,10 +68,7 @@ export const getGroups = async (req: Request, res: Response) => {
         return res.json(JSON.parse(cached));
       }
     } catch (e) {
-      console.warn(
-        "Redis get failed (getGroups):",
-        e && e.message ? e.message : e
-      );
+      console.warn("Redis get failed (getGroups):", e);
     }
 
     const groups = await prisma.group.findMany({
@@ -108,10 +102,7 @@ export const getGroups = async (req: Request, res: Response) => {
       try {
         await redisClient.setex(cacheKey, TTL_SECONDS, JSON.stringify(groups));
       } catch (e) {
-        console.warn(
-          "Redis set failed (getGroups):",
-          e && e.message ? e.message : e
-        );
+        console.warn("Redis set failed (getGroups):", e);
       }
     })();
 
@@ -130,6 +121,22 @@ export const getGroupMessages = async (req, res) => {
     const { limit = '20', cursor } = req.query;
 
     const messageLimit = parseInt(limit);
+
+    const shouldCache = !cursor;
+    const cacheKey = `group-messages:${groupId}:initial`;
+    const TTL_SECONDS = 3000;
+
+    if (shouldCache) {
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+          res.setHeader('X-Cache', 'HIT');
+          return res.json(JSON.parse(cached));
+        }
+      } catch (redisError) {
+        console.warn('Redis get failed (getGroupMessages):', redisError);
+      }
+    }
 
     const isMember = await prisma.groupMember.findUnique({
       where: {
@@ -169,11 +176,22 @@ export const getGroupMessages = async (req, res) => {
 
     const hasMore = messages.length === messageLimit;
 
-    res.json({
+    const response = {
       messages: messages.reverse(),
       hasMore,
       nextCursor: messages.length > 0 ? messages[0].id : null
-    });
+    };
+
+    if (shouldCache) {
+      redisClient.setex(cacheKey, TTL_SECONDS, JSON.stringify(response)).catch((err) => {
+        console.warn('Redis set failed (getGroupMessages):', err);
+      });
+      res.setHeader('X-Cache', 'MISS');
+    } else {
+      res.setHeader('X-Cache', 'SKIP');
+    }
+
+    res.json(response);
   } catch (error) {
     console.error("Error fetching group messages:", error);
     res.status(500).json({ error: "Failed to fetch group messages" });
@@ -184,18 +202,18 @@ export const sendGroupMessage = async (req, res) => {
   try {
     const { groupId } = req.params;
     const { text } = req.body;
-    console.log(text);
-
     const senderId = req.user.id;
 
     if (!text) {
       return res.status(400).json({ error: "Message text is required" });
     }
 
-    const isMember = await prisma.groupMember.findFirst({
+    const isMember = await prisma.groupMember.findUnique({
       where: {
-        groupId: parseInt(groupId),
-        userId: senderId,
+        groupId_userId: {
+          groupId: parseInt(groupId),
+          userId: senderId
+        }
       },
     });
 
@@ -225,6 +243,17 @@ export const sendGroupMessage = async (req, res) => {
         },
       },
     });
+
+    // Invalidation
+    (async () => {
+      try {
+        const cacheKey = `group-messages:${groupId}:initial`;
+        await redisClient.del(cacheKey);
+        console.log(`Invalidated group message cache: ${cacheKey}`);
+      } catch (e) {
+        console.warn('Failed to invalidate group message cache:', e);
+      }
+    })();
 
     res.status(201).json(message);
   } catch (error) {
